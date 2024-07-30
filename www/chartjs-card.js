@@ -30625,7 +30625,8 @@
     }
 
     render() {
-      let current_kwh = 30;
+      let kwh_today_sensor = this.hass.states["sensor.smart_meter_electricity_import_today"];
+      let current_kwh = kwh_today_sensor.state;
 
       let intensityFactors = [
         this.hass.states["sensor.biomass_carbon"].state,
