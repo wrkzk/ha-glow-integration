@@ -1,0 +1,13 @@
+{
+  "domain": "energy_mix_data",
+  "name": "Energy Mix Data",
+  "codeowners": [
+    "@wrkzk"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://www.home-assistant.io/integrations/energy_mix_data",
+  "homekit": {},
+  "iot_class": "cloud_polling",
+  "version": "1.1.0"
+}
