@@ -15,8 +15,6 @@ from .const import DOMAIN, CONF_TOPIC_PREFIX
 
 _LOGGER = logging.getLogger(__name__)
 
-STEP_USER_DATA_SCHEMA = vol.Schema({vol.Required("Option"): str})
-
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Energy Mix Data."""

@@ -1,6 +1,6 @@
 """Constants for the Energy Mix Data integration."""
 
-DOMAIN = "energy_mix_data"
+DOMAIN = "ha-glow-integration"
 CONF_TOPIC_PREFIX = "topic_prefix"
 
 ATTR_NAME = "name"
@@ -14,7 +14,7 @@ ATTR_LAST_ERROR = "last_error"
 ATTR_ERROR = "error"
 ATTR_STATE = "state"
 
-URL_BASE = "/energy_mix_data"
+URL_BASE = "/ha-glow-integration"
 MIX_CARDS = [
     {"name": "Energy Mix Card", "filename": "chartjs-card.js", "version": "1.1.1"}
 ]
