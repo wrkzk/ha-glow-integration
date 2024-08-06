@@ -16,6 +16,15 @@ PLATFORMS = ["sensor"]
 
 
 async def async_setup(hass, config):
+    # Create the hass data entry
+    if DOMAIN not in hass.data:
+        hass.data[DOMAIN] = {}
+
+    return True
+
+
+# TODO Update entry annotation
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Register the paths for the custom modules
     hass.http.register_static_path(
         "/energy_mix_data_files",
@@ -29,15 +38,6 @@ async def async_setup(hass, config):
         {"res_type": "module", "url": "/energy_mix_data_files/glow-strategy.js"}
     )
 
-    # Create the hass data entry
-    if DOMAIN not in hass.data:
-        hass.data[DOMAIN] = {}
-
-    return True
-
-
-# TODO Update entry annotation
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if entry.entry_id not in hass.data[DOMAIN]:
         hass.data[DOMAIN][entry.entry_id] = {}
 
