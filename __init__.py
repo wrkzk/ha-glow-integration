@@ -27,15 +27,15 @@ async def async_setup(hass, config):
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Register the paths for the custom modules
     hass.http.register_static_path(
-        "/energy_mix_data_files",
+        "/ha-glow-files",
         hass.config.path("custom_components/ha-glow-integration/www"),
         cache_headers=False,
     )
     await hass.data["lovelace"]["resources"].async_create_item(
-        {"res_type": "module", "url": "/energy_mix_data_files/chartjs-card.js"}
+        {"res_type": "module", "url": "/ha-glow-files/chartjs-card.js"}
     )
     await hass.data["lovelace"]["resources"].async_create_item(
-        {"res_type": "module", "url": "/energy_mix_data_files/glow-strategy.js"}
+        {"res_type": "module", "url": "/ha-glow-files/glow-strategy.js"}
     )
 
     if entry.entry_id not in hass.data[DOMAIN]:

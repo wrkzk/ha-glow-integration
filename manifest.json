@@ -1,12 +1,12 @@
 {
-  "domain": "energy_mix_data",
-  "name": "Energy Mix Data",
+  "domain": "ha-glow-integration",
+  "name": "HA Glow Integration",
   "codeowners": [
     "@wrkzk"
   ],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://www.home-assistant.io/integrations/energy_mix_data",
+  "documentation": "https://www.home-assistant.io/integrations/",
   "homekit": {},
   "iot_class": "cloud_polling",
   "version": "1.1.0"
