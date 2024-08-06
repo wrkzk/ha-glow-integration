@@ -35,7 +35,7 @@ async def async_setup(hass, config):
 
     hass.http.register_static_path(
         "/energy_mix_data_files",
-        hass.config.path("custom_components/energy_mix_data/www"),
+        hass.config.path("custom_components/ha-glow-integration/www"),
         cache_headers=False,
     )
 
