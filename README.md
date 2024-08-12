@@ -15,4 +15,9 @@ Follow the steps outline on the [HACS installation page](https://hacs.xyz/docs/s
 
 ## 3. Add custom HACS repository
 Navigate to the newly created HACS page on the sidebar, and click on **Custom repositories** as shown below.
+
 ![Custom repositories](https://github.com/user-attachments/assets/e0445598-0787-4f0a-bd49-0fd5ab036314)
+
+In the dialog box that pops up, enter the repository URL, `https://github.com/wrkzk/ha-glow-integration`. Select **Integration** for the category, then click **Add**.
+
+![image](https://github.com/user-attachments/assets/280ed5de-d0ed-4021-975c-74f61b48fcf1)
