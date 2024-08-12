@@ -14,3 +14,5 @@ This integration exposes sensor entities that fetch data via MQTT from your smar
 Follow the steps outline on the [HACS installation page](https://hacs.xyz/docs/setup/prerequisites). You first need to enable advanced mode by turning on **Profile > User settings > Advanced mode**. Second, install an ssh addon, so that you can get terminal access through Home Assitant. Then run the script shown on the HACS installation page- be sure to use the OS/Supervised script.
 
 ## 3. Add custom HACS repository
+Navigate to the newly created HACS page on the sidebar, and click on **Custom repositories** as shown below.
+![Custom repositories](https://github.com/user-attachments/assets/e0445598-0787-4f0a-bd49-0fd5ab036314)
