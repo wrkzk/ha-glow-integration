@@ -4,4 +4,12 @@ This integration exposes sensor entities that fetch data via MQTT from your smar
 ![Custom Integration Dashboard](./ha-dashboard.png)
 
 # Installation
-## Requirements
+## 1. Requirements
+- A working Home Assistant installation
+- Hildebrand Glow CAD linked to a working smart meter
+- Mosquitto Broker installed as an add-on to Home Assistant (see [here](https://github.com/home-assistant/addons/blob/master/mosquitto/DOCS.md))
+- MQTT Integration installed and configured to point to the Mosquitto Broker (see [here](https://www.home-assistant.io/integrations/mqtt/))
+
+## 2. Set up HACS
+
+## 3. Add custom HACS repository
