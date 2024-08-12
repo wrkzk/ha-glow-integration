@@ -14,8 +14,10 @@
   ];
   const dependencies = {
   	"chart.js": "^3.7.0",
+  	"chartjs-adapter-date-fns": "^3.0.0",
   	"chartjs-plugin-annotation": "^1.2.2",
   	"chartjs-plugin-zoom": "^1.2.0",
+  	"date-fns": "^3.6.0",
   	jquery: "^3.7.1",
   	lit: "^2.1.1",
   	lodash: "^4.17.15"
@@ -5868,7 +5870,7 @@
   Element.defaults = {};
   Element.defaultRoutes = undefined;
 
-  const formatters = {
+  const formatters$1 = {
     values(value) {
       return isArray(value) ? value : '' + value;
     },
@@ -5898,7 +5900,7 @@
       }
       const remain = tickValue / (Math.pow(10, Math.floor(log10(tickValue))));
       if (remain === 1 || remain === 2 || remain === 5) {
-        return formatters.numeric.call(this, tickValue, index, ticks);
+        return formatters$1.numeric.call(this, tickValue, index, ticks);
       }
       return '';
     }
@@ -5910,7 +5912,7 @@
     }
     return delta;
   }
-  var Ticks = {formatters};
+  var Ticks = {formatters: formatters$1};
 
   defaults.set('scale', {
     display: true,
@@ -12691,7 +12693,7 @@
   function sorter(a, b) {
     return a - b;
   }
-  function parse(scale, input) {
+  function parse$1(scale, input) {
     if (isNullOrUndef(input)) {
       return null;
     }
@@ -12810,7 +12812,7 @@
       if (raw === undefined) {
         return null;
       }
-      return parse(this, raw);
+      return parse$1(this, raw);
     }
     beforeLayout() {
       super.beforeLayout();
@@ -13014,7 +13016,7 @@
       }
       const labels = this.getLabels();
       for (i = 0, ilen = labels.length; i < ilen; ++i) {
-        timestamps.push(parse(this, labels[i]));
+        timestamps.push(parse$1(this, labels[i]));
       }
       return (this._cache.labels = this._normalized ? timestamps : this.normalize(timestamps));
     }
@@ -30378,10 +30380,7079 @@
   }.call(commonjsGlobal));
   }(lodash, lodash.exports));
 
-  class Card extends s {
+  /**
+   * @name toDate
+   * @category Common Helpers
+   * @summary Convert the given argument to an instance of Date.
+   *
+   * @description
+   * Convert the given argument to an instance of Date.
+   *
+   * If the argument is an instance of Date, the function returns its clone.
+   *
+   * If the argument is a number, it is treated as a timestamp.
+   *
+   * If the argument is none of the above, the function returns Invalid Date.
+   *
+   * **Note**: *all* Date arguments passed to any *date-fns* function is processed by `toDate`.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param argument - The value to convert
+   *
+   * @returns The parsed date in the local time zone
+   *
+   * @example
+   * // Clone the date:
+   * const result = toDate(new Date(2014, 1, 11, 11, 30, 30))
+   * //=> Tue Feb 11 2014 11:30:30
+   *
+   * @example
+   * // Convert the timestamp to date:
+   * const result = toDate(1392098430000)
+   * //=> Tue Feb 11 2014 11:30:30
+   */
+  function toDate(argument) {
+    const argStr = Object.prototype.toString.call(argument);
+
+    // Clone the date
+    if (
+      argument instanceof Date ||
+      (typeof argument === "object" && argStr === "[object Date]")
+    ) {
+      // Prevent the date to lose the milliseconds when passed to new Date() in IE10
+      return new argument.constructor(+argument);
+    } else if (
+      typeof argument === "number" ||
+      argStr === "[object Number]" ||
+      typeof argument === "string" ||
+      argStr === "[object String]"
+    ) {
+      // TODO: Can we get rid of as?
+      return new Date(argument);
+    } else {
+      // TODO: Can we get rid of as?
+      return new Date(NaN);
+    }
+  }
+
+  /**
+   * @name constructFrom
+   * @category Generic Helpers
+   * @summary Constructs a date using the reference date and the value
+   *
+   * @description
+   * The function constructs a new date using the constructor from the reference
+   * date and the given value. It helps to build generic functions that accept
+   * date extensions.
+   *
+   * It defaults to `Date` if the passed reference date is a number or a string.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The reference date to take constructor from
+   * @param value - The value to create the date
+   *
+   * @returns Date initialized using the given date and value
+   *
+   * @example
+   * import { constructFrom } from 'date-fns'
+   *
+   * // A function that clones a date preserving the original type
+   * function cloneDate<DateType extends Date(date: DateType): DateType {
+   *   return constructFrom(
+   *     date, // Use contrustor from the given date
+   *     date.getTime() // Use the date value to create a new date
+   *   )
+   * }
+   */
+  function constructFrom(date, value) {
+    if (date instanceof Date) {
+      return new date.constructor(value);
+    } else {
+      return new Date(value);
+    }
+  }
+
+  /**
+   * @name addDays
+   * @category Day Helpers
+   * @summary Add the specified number of days to the given date.
+   *
+   * @description
+   * Add the specified number of days to the given date.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The date to be changed
+   * @param amount - The amount of days to be added.
+   *
+   * @returns The new date with the days added
+   *
+   * @example
+   * // Add 10 days to 1 September 2014:
+   * const result = addDays(new Date(2014, 8, 1), 10)
+   * //=> Thu Sep 11 2014 00:00:00
+   */
+  function addDays(date, amount) {
+    const _date = toDate(date);
+    if (isNaN(amount)) return constructFrom(date, NaN);
+    if (!amount) {
+      // If 0 days, no-op to avoid changing times in the hour before end of DST
+      return _date;
+    }
+    _date.setDate(_date.getDate() + amount);
+    return _date;
+  }
+
+  /**
+   * @name addMonths
+   * @category Month Helpers
+   * @summary Add the specified number of months to the given date.
+   *
+   * @description
+   * Add the specified number of months to the given date.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The date to be changed
+   * @param amount - The amount of months to be added.
+   *
+   * @returns The new date with the months added
+   *
+   * @example
+   * // Add 5 months to 1 September 2014:
+   * const result = addMonths(new Date(2014, 8, 1), 5)
+   * //=> Sun Feb 01 2015 00:00:00
+   *
+   * // Add one month to 30 January 2023:
+   * const result = addMonths(new Date(2023, 0, 30), 1)
+   * //=> Tue Feb 28 2023 00:00:00
+   */
+  function addMonths(date, amount) {
+    const _date = toDate(date);
+    if (isNaN(amount)) return constructFrom(date, NaN);
+    if (!amount) {
+      // If 0 months, no-op to avoid changing times in the hour before end of DST
+      return _date;
+    }
+    const dayOfMonth = _date.getDate();
+
+    // The JS Date object supports date math by accepting out-of-bounds values for
+    // month, day, etc. For example, new Date(2020, 0, 0) returns 31 Dec 2019 and
+    // new Date(2020, 13, 1) returns 1 Feb 2021.  This is *almost* the behavior we
+    // want except that dates will wrap around the end of a month, meaning that
+    // new Date(2020, 13, 31) will return 3 Mar 2021 not 28 Feb 2021 as desired. So
+    // we'll default to the end of the desired month by adding 1 to the desired
+    // month and using a date of 0 to back up one day to the end of the desired
+    // month.
+    const endOfDesiredMonth = constructFrom(date, _date.getTime());
+    endOfDesiredMonth.setMonth(_date.getMonth() + amount + 1, 0);
+    const daysInMonth = endOfDesiredMonth.getDate();
+    if (dayOfMonth >= daysInMonth) {
+      // If we're already at the end of the month, then this is the correct date
+      // and we're done.
+      return endOfDesiredMonth;
+    } else {
+      // Otherwise, we now know that setting the original day-of-month value won't
+      // cause an overflow, so set the desired day-of-month. Note that we can't
+      // just set the date of `endOfDesiredMonth` because that object may have had
+      // its time changed in the unusual case where where a DST transition was on
+      // the last day of the month and its local time was in the hour skipped or
+      // repeated next to a DST transition.  So we use `date` instead which is
+      // guaranteed to still have the original time.
+      _date.setFullYear(
+        endOfDesiredMonth.getFullYear(),
+        endOfDesiredMonth.getMonth(),
+        dayOfMonth,
+      );
+      return _date;
+    }
+  }
+
+  /**
+   * @name addMilliseconds
+   * @category Millisecond Helpers
+   * @summary Add the specified number of milliseconds to the given date.
+   *
+   * @description
+   * Add the specified number of milliseconds to the given date.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The date to be changed
+   * @param amount - The amount of milliseconds to be added.
+   *
+   * @returns The new date with the milliseconds added
+   *
+   * @example
+   * // Add 750 milliseconds to 10 July 2014 12:45:30.000:
+   * const result = addMilliseconds(new Date(2014, 6, 10, 12, 45, 30, 0), 750)
+   * //=> Thu Jul 10 2014 12:45:30.750
+   */
+  function addMilliseconds(date, amount) {
+    const timestamp = +toDate(date);
+    return constructFrom(date, timestamp + amount);
+  }
+
+  /**
+   * @module constants
+   * @summary Useful constants
+   * @description
+   * Collection of useful date constants.
+   *
+   * The constants could be imported from `date-fns/constants`:
+   *
+   * ```ts
+   * import { maxTime, minTime } from "./constants/date-fns/constants";
+   *
+   * function isAllowedTime(time) {
+   *   return time <= maxTime && time >= minTime;
+   * }
+   * ```
+   */
+
+  /**
+   * @constant
+   * @name millisecondsInWeek
+   * @summary Milliseconds in 1 week.
+   */
+  const millisecondsInWeek = 604800000;
+
+  /**
+   * @constant
+   * @name millisecondsInDay
+   * @summary Milliseconds in 1 day.
+   */
+  const millisecondsInDay = 86400000;
+
+  /**
+   * @constant
+   * @name millisecondsInMinute
+   * @summary Milliseconds in 1 minute
+   */
+  const millisecondsInMinute = 60000;
+
+  /**
+   * @constant
+   * @name millisecondsInHour
+   * @summary Milliseconds in 1 hour
+   */
+  const millisecondsInHour = 3600000;
+
+  /**
+   * @constant
+   * @name millisecondsInSecond
+   * @summary Milliseconds in 1 second
+   */
+  const millisecondsInSecond = 1000;
+
+  /**
+   * @name addHours
+   * @category Hour Helpers
+   * @summary Add the specified number of hours to the given date.
+   *
+   * @description
+   * Add the specified number of hours to the given date.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The date to be changed
+   * @param amount - The amount of hours to be added.
+   *
+   * @returns The new date with the hours added
+   *
+   * @example
+   * // Add 2 hours to 10 July 2014 23:00:00:
+   * const result = addHours(new Date(2014, 6, 10, 23, 0), 2)
+   * //=> Fri Jul 11 2014 01:00:00
+   */
+  function addHours(date, amount) {
+    return addMilliseconds(date, amount * millisecondsInHour);
+  }
+
+  let defaultOptions = {};
+
+  function getDefaultOptions$1() {
+    return defaultOptions;
+  }
+
+  /**
+   * The {@link startOfWeek} function options.
+   */
+
+  /**
+   * @name startOfWeek
+   * @category Week Helpers
+   * @summary Return the start of a week for the given date.
+   *
+   * @description
+   * Return the start of a week for the given date.
+   * The result will be in the local timezone.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The original date
+   * @param options - An object with options
+   *
+   * @returns The start of a week
+   *
+   * @example
+   * // The start of a week for 2 September 2014 11:55:00:
+   * const result = startOfWeek(new Date(2014, 8, 2, 11, 55, 0))
+   * //=> Sun Aug 31 2014 00:00:00
+   *
+   * @example
+   * // If the week starts on Monday, the start of the week for 2 September 2014 11:55:00:
+   * const result = startOfWeek(new Date(2014, 8, 2, 11, 55, 0), { weekStartsOn: 1 })
+   * //=> Mon Sep 01 2014 00:00:00
+   */
+  function startOfWeek(date, options) {
+    const defaultOptions = getDefaultOptions$1();
+    const weekStartsOn =
+      options?.weekStartsOn ??
+      options?.locale?.options?.weekStartsOn ??
+      defaultOptions.weekStartsOn ??
+      defaultOptions.locale?.options?.weekStartsOn ??
+      0;
+
+    const _date = toDate(date);
+    const day = _date.getDay();
+    const diff = (day < weekStartsOn ? 7 : 0) + day - weekStartsOn;
+
+    _date.setDate(_date.getDate() - diff);
+    _date.setHours(0, 0, 0, 0);
+    return _date;
+  }
+
+  /**
+   * @name startOfISOWeek
+   * @category ISO Week Helpers
+   * @summary Return the start of an ISO week for the given date.
+   *
+   * @description
+   * Return the start of an ISO week for the given date.
+   * The result will be in the local timezone.
+   *
+   * ISO week-numbering year: http://en.wikipedia.org/wiki/ISO_week_date
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The original date
+   *
+   * @returns The start of an ISO week
+   *
+   * @example
+   * // The start of an ISO week for 2 September 2014 11:55:00:
+   * const result = startOfISOWeek(new Date(2014, 8, 2, 11, 55, 0))
+   * //=> Mon Sep 01 2014 00:00:00
+   */
+  function startOfISOWeek(date) {
+    return startOfWeek(date, { weekStartsOn: 1 });
+  }
+
+  /**
+   * @name getISOWeekYear
+   * @category ISO Week-Numbering Year Helpers
+   * @summary Get the ISO week-numbering year of the given date.
+   *
+   * @description
+   * Get the ISO week-numbering year of the given date,
+   * which always starts 3 days before the year's first Thursday.
+   *
+   * ISO week-numbering year: http://en.wikipedia.org/wiki/ISO_week_date
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The given date
+   *
+   * @returns The ISO week-numbering year
+   *
+   * @example
+   * // Which ISO-week numbering year is 2 January 2005?
+   * const result = getISOWeekYear(new Date(2005, 0, 2))
+   * //=> 2004
+   */
+  function getISOWeekYear(date) {
+    const _date = toDate(date);
+    const year = _date.getFullYear();
+
+    const fourthOfJanuaryOfNextYear = constructFrom(date, 0);
+    fourthOfJanuaryOfNextYear.setFullYear(year + 1, 0, 4);
+    fourthOfJanuaryOfNextYear.setHours(0, 0, 0, 0);
+    const startOfNextYear = startOfISOWeek(fourthOfJanuaryOfNextYear);
+
+    const fourthOfJanuaryOfThisYear = constructFrom(date, 0);
+    fourthOfJanuaryOfThisYear.setFullYear(year, 0, 4);
+    fourthOfJanuaryOfThisYear.setHours(0, 0, 0, 0);
+    const startOfThisYear = startOfISOWeek(fourthOfJanuaryOfThisYear);
+
+    if (_date.getTime() >= startOfNextYear.getTime()) {
+      return year + 1;
+    } else if (_date.getTime() >= startOfThisYear.getTime()) {
+      return year;
+    } else {
+      return year - 1;
+    }
+  }
+
+  /**
+   * @name startOfDay
+   * @category Day Helpers
+   * @summary Return the start of a day for the given date.
+   *
+   * @description
+   * Return the start of a day for the given date.
+   * The result will be in the local timezone.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The original date
+   *
+   * @returns The start of a day
+   *
+   * @example
+   * // The start of a day for 2 September 2014 11:55:00:
+   * const result = startOfDay(new Date(2014, 8, 2, 11, 55, 0))
+   * //=> Tue Sep 02 2014 00:00:00
+   */
+  function startOfDay(date) {
+    const _date = toDate(date);
+    _date.setHours(0, 0, 0, 0);
+    return _date;
+  }
+
+  /**
+   * Google Chrome as of 67.0.3396.87 introduced timezones with offset that includes seconds.
+   * They usually appear for dates that denote time before the timezones were introduced
+   * (e.g. for 'Europe/Prague' timezone the offset is GMT+00:57:44 before 1 October 1891
+   * and GMT+01:00:00 after that date)
+   *
+   * Date#getTimezoneOffset returns the offset in minutes and would return 57 for the example above,
+   * which would lead to incorrect calculations.
+   *
+   * This function returns the timezone offset in milliseconds that takes seconds in account.
+   */
+  function getTimezoneOffsetInMilliseconds(date) {
+    const _date = toDate(date);
+    const utcDate = new Date(
+      Date.UTC(
+        _date.getFullYear(),
+        _date.getMonth(),
+        _date.getDate(),
+        _date.getHours(),
+        _date.getMinutes(),
+        _date.getSeconds(),
+        _date.getMilliseconds(),
+      ),
+    );
+    utcDate.setUTCFullYear(_date.getFullYear());
+    return +date - +utcDate;
+  }
+
+  /**
+   * @name differenceInCalendarDays
+   * @category Day Helpers
+   * @summary Get the number of calendar days between the given dates.
+   *
+   * @description
+   * Get the number of calendar days between the given dates. This means that the times are removed
+   * from the dates and then the difference in days is calculated.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param dateLeft - The later date
+   * @param dateRight - The earlier date
+   *
+   * @returns The number of calendar days
+   *
+   * @example
+   * // How many calendar days are between
+   * // 2 July 2011 23:00:00 and 2 July 2012 00:00:00?
+   * const result = differenceInCalendarDays(
+   *   new Date(2012, 6, 2, 0, 0),
+   *   new Date(2011, 6, 2, 23, 0)
+   * )
+   * //=> 366
+   * // How many calendar days are between
+   * // 2 July 2011 23:59:00 and 3 July 2011 00:01:00?
+   * const result = differenceInCalendarDays(
+   *   new Date(2011, 6, 3, 0, 1),
+   *   new Date(2011, 6, 2, 23, 59)
+   * )
+   * //=> 1
+   */
+  function differenceInCalendarDays(dateLeft, dateRight) {
+    const startOfDayLeft = startOfDay(dateLeft);
+    const startOfDayRight = startOfDay(dateRight);
+
+    const timestampLeft =
+      +startOfDayLeft - getTimezoneOffsetInMilliseconds(startOfDayLeft);
+    const timestampRight =
+      +startOfDayRight - getTimezoneOffsetInMilliseconds(startOfDayRight);
+
+    // Round the number of days to the nearest integer because the number of
+    // milliseconds in a day is not constant (e.g. it's different in the week of
+    // the daylight saving time clock shift).
+    return Math.round((timestampLeft - timestampRight) / millisecondsInDay);
+  }
+
+  /**
+   * @name startOfISOWeekYear
+   * @category ISO Week-Numbering Year Helpers
+   * @summary Return the start of an ISO week-numbering year for the given date.
+   *
+   * @description
+   * Return the start of an ISO week-numbering year,
+   * which always starts 3 days before the year's first Thursday.
+   * The result will be in the local timezone.
+   *
+   * ISO week-numbering year: http://en.wikipedia.org/wiki/ISO_week_date
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The original date
+   *
+   * @returns The start of an ISO week-numbering year
+   *
+   * @example
+   * // The start of an ISO week-numbering year for 2 July 2005:
+   * const result = startOfISOWeekYear(new Date(2005, 6, 2))
+   * //=> Mon Jan 03 2005 00:00:00
+   */
+  function startOfISOWeekYear(date) {
+    const year = getISOWeekYear(date);
+    const fourthOfJanuary = constructFrom(date, 0);
+    fourthOfJanuary.setFullYear(year, 0, 4);
+    fourthOfJanuary.setHours(0, 0, 0, 0);
+    return startOfISOWeek(fourthOfJanuary);
+  }
+
+  /**
+   * @name addMinutes
+   * @category Minute Helpers
+   * @summary Add the specified number of minutes to the given date.
+   *
+   * @description
+   * Add the specified number of minutes to the given date.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The date to be changed
+   * @param amount - The amount of minutes to be added.
+   *
+   * @returns The new date with the minutes added
+   *
+   * @example
+   * // Add 30 minutes to 10 July 2014 12:00:00:
+   * const result = addMinutes(new Date(2014, 6, 10, 12, 0), 30)
+   * //=> Thu Jul 10 2014 12:30:00
+   */
+  function addMinutes(date, amount) {
+    return addMilliseconds(date, amount * millisecondsInMinute);
+  }
+
+  /**
+   * @name addQuarters
+   * @category Quarter Helpers
+   * @summary Add the specified number of year quarters to the given date.
+   *
+   * @description
+   * Add the specified number of year quarters to the given date.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The date to be changed
+   * @param amount - The amount of quarters to be added.
+   *
+   * @returns The new date with the quarters added
+   *
+   * @example
+   * // Add 1 quarter to 1 September 2014:
+   * const result = addQuarters(new Date(2014, 8, 1), 1)
+   * //=> Mon Dec 01 2014 00:00:00
+   */
+  function addQuarters(date, amount) {
+    const months = amount * 3;
+    return addMonths(date, months);
+  }
+
+  /**
+   * @name addSeconds
+   * @category Second Helpers
+   * @summary Add the specified number of seconds to the given date.
+   *
+   * @description
+   * Add the specified number of seconds to the given date.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The date to be changed
+   * @param amount - The amount of seconds to be added.
+   *
+   * @returns The new date with the seconds added
+   *
+   * @example
+   * // Add 30 seconds to 10 July 2014 12:45:00:
+   * const result = addSeconds(new Date(2014, 6, 10, 12, 45, 0), 30)
+   * //=> Thu Jul 10 2014 12:45:30
+   */
+  function addSeconds(date, amount) {
+    return addMilliseconds(date, amount * 1000);
+  }
+
+  /**
+   * @name addWeeks
+   * @category Week Helpers
+   * @summary Add the specified number of weeks to the given date.
+   *
+   * @description
+   * Add the specified number of week to the given date.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The date to be changed
+   * @param amount - The amount of weeks to be added.
+   *
+   * @returns The new date with the weeks added
+   *
+   * @example
+   * // Add 4 weeks to 1 September 2014:
+   * const result = addWeeks(new Date(2014, 8, 1), 4)
+   * //=> Mon Sep 29 2014 00:00:00
+   */
+  function addWeeks(date, amount) {
+    const days = amount * 7;
+    return addDays(date, days);
+  }
+
+  /**
+   * @name addYears
+   * @category Year Helpers
+   * @summary Add the specified number of years to the given date.
+   *
+   * @description
+   * Add the specified number of years to the given date.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The date to be changed
+   * @param amount - The amount of years to be added.
+   *
+   * @returns The new date with the years added
+   *
+   * @example
+   * // Add 5 years to 1 September 2014:
+   * const result = addYears(new Date(2014, 8, 1), 5)
+   * //=> Sun Sep 01 2019 00:00:00
+   */
+  function addYears(date, amount) {
+    return addMonths(date, amount * 12);
+  }
+
+  /**
+   * @name compareAsc
+   * @category Common Helpers
+   * @summary Compare the two dates and return -1, 0 or 1.
+   *
+   * @description
+   * Compare the two dates and return 1 if the first date is after the second,
+   * -1 if the first date is before the second or 0 if dates are equal.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param dateLeft - The first date to compare
+   * @param dateRight - The second date to compare
+   *
+   * @returns The result of the comparison
+   *
+   * @example
+   * // Compare 11 February 1987 and 10 July 1989:
+   * const result = compareAsc(new Date(1987, 1, 11), new Date(1989, 6, 10))
+   * //=> -1
+   *
+   * @example
+   * // Sort the array of dates:
+   * const result = [
+   *   new Date(1995, 6, 2),
+   *   new Date(1987, 1, 11),
+   *   new Date(1989, 6, 10)
+   * ].sort(compareAsc)
+   * //=> [
+   * //   Wed Feb 11 1987 00:00:00,
+   * //   Mon Jul 10 1989 00:00:00,
+   * //   Sun Jul 02 1995 00:00:00
+   * // ]
+   */
+  function compareAsc(dateLeft, dateRight) {
+    const _dateLeft = toDate(dateLeft);
+    const _dateRight = toDate(dateRight);
+
+    const diff = _dateLeft.getTime() - _dateRight.getTime();
+
+    if (diff < 0) {
+      return -1;
+    } else if (diff > 0) {
+      return 1;
+      // Return 0 if diff is 0; return NaN if diff is NaN
+    } else {
+      return diff;
+    }
+  }
+
+  /**
+   * @name isDate
+   * @category Common Helpers
+   * @summary Is the given value a date?
+   *
+   * @description
+   * Returns true if the given value is an instance of Date. The function works for dates transferred across iframes.
+   *
+   * @param value - The value to check
+   *
+   * @returns True if the given value is a date
+   *
+   * @example
+   * // For a valid date:
+   * const result = isDate(new Date())
+   * //=> true
+   *
+   * @example
+   * // For an invalid date:
+   * const result = isDate(new Date(NaN))
+   * //=> true
+   *
+   * @example
+   * // For some value:
+   * const result = isDate('2014-02-31')
+   * //=> false
+   *
+   * @example
+   * // For an object:
+   * const result = isDate({})
+   * //=> false
+   */
+  function isDate(value) {
+    return (
+      value instanceof Date ||
+      (typeof value === "object" &&
+        Object.prototype.toString.call(value) === "[object Date]")
+    );
+  }
+
+  /**
+   * @name isValid
+   * @category Common Helpers
+   * @summary Is the given date valid?
+   *
+   * @description
+   * Returns false if argument is Invalid Date and true otherwise.
+   * Argument is converted to Date using `toDate`. See [toDate](https://date-fns.org/docs/toDate)
+   * Invalid Date is a Date, whose time value is NaN.
+   *
+   * Time value of Date: http://es5.github.io/#x15.9.1.1
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The date to check
+   *
+   * @returns The date is valid
+   *
+   * @example
+   * // For the valid date:
+   * const result = isValid(new Date(2014, 1, 31))
+   * //=> true
+   *
+   * @example
+   * // For the value, convertable into a date:
+   * const result = isValid(1393804800000)
+   * //=> true
+   *
+   * @example
+   * // For the invalid date:
+   * const result = isValid(new Date(''))
+   * //=> false
+   */
+  function isValid(date) {
+    if (!isDate(date) && typeof date !== "number") {
+      return false;
+    }
+    const _date = toDate(date);
+    return !isNaN(Number(_date));
+  }
+
+  /**
+   * @name differenceInCalendarMonths
+   * @category Month Helpers
+   * @summary Get the number of calendar months between the given dates.
+   *
+   * @description
+   * Get the number of calendar months between the given dates.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param dateLeft - The later date
+   * @param dateRight - The earlier date
+   *
+   * @returns The number of calendar months
+   *
+   * @example
+   * // How many calendar months are between 31 January 2014 and 1 September 2014?
+   * const result = differenceInCalendarMonths(
+   *   new Date(2014, 8, 1),
+   *   new Date(2014, 0, 31)
+   * )
+   * //=> 8
+   */
+  function differenceInCalendarMonths(dateLeft, dateRight) {
+    const _dateLeft = toDate(dateLeft);
+    const _dateRight = toDate(dateRight);
+
+    const yearDiff = _dateLeft.getFullYear() - _dateRight.getFullYear();
+    const monthDiff = _dateLeft.getMonth() - _dateRight.getMonth();
+
+    return yearDiff * 12 + monthDiff;
+  }
+
+  /**
+   * @name differenceInCalendarYears
+   * @category Year Helpers
+   * @summary Get the number of calendar years between the given dates.
+   *
+   * @description
+   * Get the number of calendar years between the given dates.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param dateLeft - The later date
+   * @param dateRight - The earlier date
+
+   * @returns The number of calendar years
+   *
+   * @example
+   * // How many calendar years are between 31 December 2013 and 11 February 2015?
+   * const result = differenceInCalendarYears(
+   *   new Date(2015, 1, 11),
+   *   new Date(2013, 11, 31)
+   * )
+   * //=> 2
+   */
+  function differenceInCalendarYears(dateLeft, dateRight) {
+    const _dateLeft = toDate(dateLeft);
+    const _dateRight = toDate(dateRight);
+
+    return _dateLeft.getFullYear() - _dateRight.getFullYear();
+  }
+
+  /**
+   * @name differenceInDays
+   * @category Day Helpers
+   * @summary Get the number of full days between the given dates.
+   *
+   * @description
+   * Get the number of full day periods between two dates. Fractional days are
+   * truncated towards zero.
+   *
+   * One "full day" is the distance between a local time in one day to the same
+   * local time on the next or previous day. A full day can sometimes be less than
+   * or more than 24 hours if a daylight savings change happens between two dates.
+   *
+   * To ignore DST and only measure exact 24-hour periods, use this instead:
+   * `Math.trunc(differenceInHours(dateLeft, dateRight)/24)|0`.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param dateLeft - The later date
+   * @param dateRight - The earlier date
+   *
+   * @returns The number of full days according to the local timezone
+   *
+   * @example
+   * // How many full days are between
+   * // 2 July 2011 23:00:00 and 2 July 2012 00:00:00?
+   * const result = differenceInDays(
+   *   new Date(2012, 6, 2, 0, 0),
+   *   new Date(2011, 6, 2, 23, 0)
+   * )
+   * //=> 365
+   *
+   * @example
+   * // How many full days are between
+   * // 2 July 2011 23:59:00 and 3 July 2011 00:01:00?
+   * const result = differenceInDays(
+   *   new Date(2011, 6, 3, 0, 1),
+   *   new Date(2011, 6, 2, 23, 59)
+   * )
+   * //=> 0
+   *
+   * @example
+   * // How many full days are between
+   * // 1 March 2020 0:00 and 1 June 2020 0:00 ?
+   * // Note: because local time is used, the
+   * // result will always be 92 days, even in
+   * // time zones where DST starts and the
+   * // period has only 92*24-1 hours.
+   * const result = differenceInDays(
+   *   new Date(2020, 5, 1),
+   *   new Date(2020, 2, 1)
+   * )
+   * //=> 92
+   */
+  function differenceInDays(dateLeft, dateRight) {
+    const _dateLeft = toDate(dateLeft);
+    const _dateRight = toDate(dateRight);
+
+    const sign = compareLocalAsc(_dateLeft, _dateRight);
+    const difference = Math.abs(differenceInCalendarDays(_dateLeft, _dateRight));
+
+    _dateLeft.setDate(_dateLeft.getDate() - sign * difference);
+
+    // Math.abs(diff in full days - diff in calendar days) === 1 if last calendar day is not full
+    // If so, result must be decreased by 1 in absolute value
+    const isLastDayNotFull = Number(
+      compareLocalAsc(_dateLeft, _dateRight) === -sign,
+    );
+    const result = sign * (difference - isLastDayNotFull);
+    // Prevent negative zero
+    return result === 0 ? 0 : result;
+  }
+
+  // Like `compareAsc` but uses local time not UTC, which is needed
+  // for accurate equality comparisons of UTC timestamps that end up
+  // having the same representation in local time, e.g. one hour before
+  // DST ends vs. the instant that DST ends.
+  function compareLocalAsc(dateLeft, dateRight) {
+    const diff =
+      dateLeft.getFullYear() - dateRight.getFullYear() ||
+      dateLeft.getMonth() - dateRight.getMonth() ||
+      dateLeft.getDate() - dateRight.getDate() ||
+      dateLeft.getHours() - dateRight.getHours() ||
+      dateLeft.getMinutes() - dateRight.getMinutes() ||
+      dateLeft.getSeconds() - dateRight.getSeconds() ||
+      dateLeft.getMilliseconds() - dateRight.getMilliseconds();
+
+    if (diff < 0) {
+      return -1;
+    } else if (diff > 0) {
+      return 1;
+      // Return 0 if diff is 0; return NaN if diff is NaN
+    } else {
+      return diff;
+    }
+  }
+
+  function getRoundingMethod(method) {
+    return (number) => {
+      const round = method ? Math[method] : Math.trunc;
+      const result = round(number);
+      // Prevent negative zero
+      return result === 0 ? 0 : result;
+    };
+  }
+
+  /**
+   * @name differenceInMilliseconds
+   * @category Millisecond Helpers
+   * @summary Get the number of milliseconds between the given dates.
+   *
+   * @description
+   * Get the number of milliseconds between the given dates.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param dateLeft - The later date
+   * @param dateRight - The earlier date
+   *
+   * @returns The number of milliseconds
+   *
+   * @example
+   * // How many milliseconds are between
+   * // 2 July 2014 12:30:20.600 and 2 July 2014 12:30:21.700?
+   * const result = differenceInMilliseconds(
+   *   new Date(2014, 6, 2, 12, 30, 21, 700),
+   *   new Date(2014, 6, 2, 12, 30, 20, 600)
+   * )
+   * //=> 1100
+   */
+  function differenceInMilliseconds(dateLeft, dateRight) {
+    return +toDate(dateLeft) - +toDate(dateRight);
+  }
+
+  /**
+   * The {@link differenceInHours} function options.
+   */
+
+  /**
+   * @name differenceInHours
+   * @category Hour Helpers
+   * @summary Get the number of hours between the given dates.
+   *
+   * @description
+   * Get the number of hours between the given dates.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param dateLeft - The later date
+   * @param dateRight - The earlier date
+   * @param options - An object with options.
+   *
+   * @returns The number of hours
+   *
+   * @example
+   * // How many hours are between 2 July 2014 06:50:00 and 2 July 2014 19:00:00?
+   * const result = differenceInHours(
+   *   new Date(2014, 6, 2, 19, 0),
+   *   new Date(2014, 6, 2, 6, 50)
+   * )
+   * //=> 12
+   */
+  function differenceInHours(dateLeft, dateRight, options) {
+    const diff =
+      differenceInMilliseconds(dateLeft, dateRight) / millisecondsInHour;
+    return getRoundingMethod(options?.roundingMethod)(diff);
+  }
+
+  /**
+   * The {@link differenceInMinutes} function options.
+   */
+
+  /**
+   * @name differenceInMinutes
+   * @category Minute Helpers
+   * @summary Get the number of minutes between the given dates.
+   *
+   * @description
+   * Get the signed number of full (rounded towards 0) minutes between the given dates.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param dateLeft - The later date
+   * @param dateRight - The earlier date
+   * @param options - An object with options.
+   *
+   * @returns The number of minutes
+   *
+   * @example
+   * // How many minutes are between 2 July 2014 12:07:59 and 2 July 2014 12:20:00?
+   * const result = differenceInMinutes(
+   *   new Date(2014, 6, 2, 12, 20, 0),
+   *   new Date(2014, 6, 2, 12, 7, 59)
+   * )
+   * //=> 12
+   *
+   * @example
+   * // How many minutes are between 10:01:59 and 10:00:00
+   * const result = differenceInMinutes(
+   *   new Date(2000, 0, 1, 10, 0, 0),
+   *   new Date(2000, 0, 1, 10, 1, 59)
+   * )
+   * //=> -1
+   */
+  function differenceInMinutes(dateLeft, dateRight, options) {
+    const diff =
+      differenceInMilliseconds(dateLeft, dateRight) / millisecondsInMinute;
+    return getRoundingMethod(options?.roundingMethod)(diff);
+  }
+
+  /**
+   * @name endOfDay
+   * @category Day Helpers
+   * @summary Return the end of a day for the given date.
+   *
+   * @description
+   * Return the end of a day for the given date.
+   * The result will be in the local timezone.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The original date
+   *
+   * @returns The end of a day
+   *
+   * @example
+   * // The end of a day for 2 September 2014 11:55:00:
+   * const result = endOfDay(new Date(2014, 8, 2, 11, 55, 0))
+   * //=> Tue Sep 02 2014 23:59:59.999
+   */
+  function endOfDay(date) {
+    const _date = toDate(date);
+    _date.setHours(23, 59, 59, 999);
+    return _date;
+  }
+
+  /**
+   * @name endOfMonth
+   * @category Month Helpers
+   * @summary Return the end of a month for the given date.
+   *
+   * @description
+   * Return the end of a month for the given date.
+   * The result will be in the local timezone.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The original date
+   *
+   * @returns The end of a month
+   *
+   * @example
+   * // The end of a month for 2 September 2014 11:55:00:
+   * const result = endOfMonth(new Date(2014, 8, 2, 11, 55, 0))
+   * //=> Tue Sep 30 2014 23:59:59.999
+   */
+  function endOfMonth(date) {
+    const _date = toDate(date);
+    const month = _date.getMonth();
+    _date.setFullYear(_date.getFullYear(), month + 1, 0);
+    _date.setHours(23, 59, 59, 999);
+    return _date;
+  }
+
+  /**
+   * @name isLastDayOfMonth
+   * @category Month Helpers
+   * @summary Is the given date the last day of a month?
+   *
+   * @description
+   * Is the given date the last day of a month?
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The date to check
+
+   * @returns The date is the last day of a month
+   *
+   * @example
+   * // Is 28 February 2014 the last day of a month?
+   * const result = isLastDayOfMonth(new Date(2014, 1, 28))
+   * //=> true
+   */
+  function isLastDayOfMonth(date) {
+    const _date = toDate(date);
+    return +endOfDay(_date) === +endOfMonth(_date);
+  }
+
+  /**
+   * @name differenceInMonths
+   * @category Month Helpers
+   * @summary Get the number of full months between the given dates.
+   *
+   * @description
+   * Get the number of full months between the given dates using trunc as a default rounding method.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param dateLeft - The later date
+   * @param dateRight - The earlier date
+   *
+   * @returns The number of full months
+   *
+   * @example
+   * // How many full months are between 31 January 2014 and 1 September 2014?
+   * const result = differenceInMonths(new Date(2014, 8, 1), new Date(2014, 0, 31))
+   * //=> 7
+   */
+  function differenceInMonths(dateLeft, dateRight) {
+    const _dateLeft = toDate(dateLeft);
+    const _dateRight = toDate(dateRight);
+
+    const sign = compareAsc(_dateLeft, _dateRight);
+    const difference = Math.abs(
+      differenceInCalendarMonths(_dateLeft, _dateRight),
+    );
+    let result;
+
+    // Check for the difference of less than month
+    if (difference < 1) {
+      result = 0;
+    } else {
+      if (_dateLeft.getMonth() === 1 && _dateLeft.getDate() > 27) {
+        // This will check if the date is end of Feb and assign a higher end of month date
+        // to compare it with Jan
+        _dateLeft.setDate(30);
+      }
+
+      _dateLeft.setMonth(_dateLeft.getMonth() - sign * difference);
+
+      // Math.abs(diff in full months - diff in calendar months) === 1 if last calendar month is not full
+      // If so, result must be decreased by 1 in absolute value
+      let isLastMonthNotFull = compareAsc(_dateLeft, _dateRight) === -sign;
+
+      // Check for cases of one full calendar month
+      if (
+        isLastDayOfMonth(toDate(dateLeft)) &&
+        difference === 1 &&
+        compareAsc(dateLeft, _dateRight) === 1
+      ) {
+        isLastMonthNotFull = false;
+      }
+
+      result = sign * (difference - Number(isLastMonthNotFull));
+    }
+
+    // Prevent negative zero
+    return result === 0 ? 0 : result;
+  }
+
+  /**
+   * The {@link differenceInQuarters} function options.
+   */
+
+  /**
+   * @name differenceInQuarters
+   * @category Quarter Helpers
+   * @summary Get the number of quarters between the given dates.
+   *
+   * @description
+   * Get the number of quarters between the given dates.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param dateLeft - The later date
+   * @param dateRight - The earlier date
+   * @param options - An object with options.
+   *
+   * @returns The number of full quarters
+   *
+   * @example
+   * // How many full quarters are between 31 December 2013 and 2 July 2014?
+   * const result = differenceInQuarters(new Date(2014, 6, 2), new Date(2013, 11, 31))
+   * //=> 2
+   */
+  function differenceInQuarters(dateLeft, dateRight, options) {
+    const diff = differenceInMonths(dateLeft, dateRight) / 3;
+    return getRoundingMethod(options?.roundingMethod)(diff);
+  }
+
+  /**
+   * The {@link differenceInSeconds} function options.
+   */
+
+  /**
+   * @name differenceInSeconds
+   * @category Second Helpers
+   * @summary Get the number of seconds between the given dates.
+   *
+   * @description
+   * Get the number of seconds between the given dates.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param dateLeft - The later date
+   * @param dateRight - The earlier date
+   * @param options - An object with options.
+   *
+   * @returns The number of seconds
+   *
+   * @example
+   * // How many seconds are between
+   * // 2 July 2014 12:30:07.999 and 2 July 2014 12:30:20.000?
+   * const result = differenceInSeconds(
+   *   new Date(2014, 6, 2, 12, 30, 20, 0),
+   *   new Date(2014, 6, 2, 12, 30, 7, 999)
+   * )
+   * //=> 12
+   */
+  function differenceInSeconds(dateLeft, dateRight, options) {
+    const diff = differenceInMilliseconds(dateLeft, dateRight) / 1000;
+    return getRoundingMethod(options?.roundingMethod)(diff);
+  }
+
+  /**
+   * The {@link differenceInWeeks} function options.
+   */
+
+  /**
+   * @name differenceInWeeks
+   * @category Week Helpers
+   * @summary Get the number of full weeks between the given dates.
+   *
+   * @description
+   * Get the number of full weeks between two dates. Fractional weeks are
+   * truncated towards zero by default.
+   *
+   * One "full week" is the distance between a local time in one day to the same
+   * local time 7 days earlier or later. A full week can sometimes be less than
+   * or more than 7*24 hours if a daylight savings change happens between two dates.
+   *
+   * To ignore DST and only measure exact 7*24-hour periods, use this instead:
+   * `Math.trunc(differenceInHours(dateLeft, dateRight)/(7*24))|0`.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param dateLeft - The later date
+   * @param dateRight - The earlier date
+   * @param options - An object with options
+   *
+   * @returns The number of full weeks
+   *
+   * @example
+   * // How many full weeks are between 5 July 2014 and 20 July 2014?
+   * const result = differenceInWeeks(new Date(2014, 6, 20), new Date(2014, 6, 5))
+   * //=> 2
+   *
+   * @example
+   * // How many full weeks are between
+   * // 1 March 2020 0:00 and 6 June 2020 0:00 ?
+   * // Note: because local time is used, the
+   * // result will always be 8 weeks (54 days),
+   * // even if DST starts and the period has
+   * // only 54*24-1 hours.
+   * const result = differenceInWeeks(
+   *   new Date(2020, 5, 1),
+   *   new Date(2020, 2, 6)
+   * )
+   * //=> 8
+   */
+  function differenceInWeeks(dateLeft, dateRight, options) {
+    const diff = differenceInDays(dateLeft, dateRight) / 7;
+    return getRoundingMethod(options?.roundingMethod)(diff);
+  }
+
+  /**
+   * @name differenceInYears
+   * @category Year Helpers
+   * @summary Get the number of full years between the given dates.
+   *
+   * @description
+   * Get the number of full years between the given dates.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param dateLeft - The later date
+   * @param dateRight - The earlier date
+   *
+   * @returns The number of full years
+   *
+   * @example
+   * // How many full years are between 31 December 2013 and 11 February 2015?
+   * const result = differenceInYears(new Date(2015, 1, 11), new Date(2013, 11, 31))
+   * //=> 1
+   */
+  function differenceInYears(dateLeft, dateRight) {
+    const _dateLeft = toDate(dateLeft);
+    const _dateRight = toDate(dateRight);
+
+    const sign = compareAsc(_dateLeft, _dateRight);
+    const difference = Math.abs(differenceInCalendarYears(_dateLeft, _dateRight));
+
+    // Set both dates to a valid leap year for accurate comparison when dealing
+    // with leap days
+    _dateLeft.setFullYear(1584);
+    _dateRight.setFullYear(1584);
+
+    // Math.abs(diff in full years - diff in calendar years) === 1 if last calendar year is not full
+    // If so, result must be decreased by 1 in absolute value
+    const isLastYearNotFull = compareAsc(_dateLeft, _dateRight) === -sign;
+    const result = sign * (difference - +isLastYearNotFull);
+
+    // Prevent negative zero
+    return result === 0 ? 0 : result;
+  }
+
+  /**
+   * @name startOfMinute
+   * @category Minute Helpers
+   * @summary Return the start of a minute for the given date.
+   *
+   * @description
+   * Return the start of a minute for the given date.
+   * The result will be in the local timezone.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The original date
+   *
+   * @returns The start of a minute
+   *
+   * @example
+   * // The start of a minute for 1 December 2014 22:15:45.400:
+   * const result = startOfMinute(new Date(2014, 11, 1, 22, 15, 45, 400))
+   * //=> Mon Dec 01 2014 22:15:00
+   */
+  function startOfMinute(date) {
+    const _date = toDate(date);
+    _date.setSeconds(0, 0);
+    return _date;
+  }
+
+  /**
+   * @name startOfQuarter
+   * @category Quarter Helpers
+   * @summary Return the start of a year quarter for the given date.
+   *
+   * @description
+   * Return the start of a year quarter for the given date.
+   * The result will be in the local timezone.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The original date
+   *
+   * @returns The start of a quarter
+   *
+   * @example
+   * // The start of a quarter for 2 September 2014 11:55:00:
+   * const result = startOfQuarter(new Date(2014, 8, 2, 11, 55, 0))
+   * //=> Tue Jul 01 2014 00:00:00
+   */
+  function startOfQuarter(date) {
+    const _date = toDate(date);
+    const currentMonth = _date.getMonth();
+    const month = currentMonth - (currentMonth % 3);
+    _date.setMonth(month, 1);
+    _date.setHours(0, 0, 0, 0);
+    return _date;
+  }
+
+  /**
+   * @name startOfMonth
+   * @category Month Helpers
+   * @summary Return the start of a month for the given date.
+   *
+   * @description
+   * Return the start of a month for the given date.
+   * The result will be in the local timezone.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The original date
+   *
+   * @returns The start of a month
+   *
+   * @example
+   * // The start of a month for 2 September 2014 11:55:00:
+   * const result = startOfMonth(new Date(2014, 8, 2, 11, 55, 0))
+   * //=> Mon Sep 01 2014 00:00:00
+   */
+  function startOfMonth(date) {
+    const _date = toDate(date);
+    _date.setDate(1);
+    _date.setHours(0, 0, 0, 0);
+    return _date;
+  }
+
+  /**
+   * @name endOfYear
+   * @category Year Helpers
+   * @summary Return the end of a year for the given date.
+   *
+   * @description
+   * Return the end of a year for the given date.
+   * The result will be in the local timezone.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The original date
+   *
+   * @returns The end of a year
+   *
+   * @example
+   * // The end of a year for 2 September 2014 11:55:00:
+   * const result = endOfYear(new Date(2014, 8, 2, 11, 55, 00))
+   * //=> Wed Dec 31 2014 23:59:59.999
+   */
+  function endOfYear(date) {
+    const _date = toDate(date);
+    const year = _date.getFullYear();
+    _date.setFullYear(year + 1, 0, 0);
+    _date.setHours(23, 59, 59, 999);
+    return _date;
+  }
+
+  /**
+   * @name startOfYear
+   * @category Year Helpers
+   * @summary Return the start of a year for the given date.
+   *
+   * @description
+   * Return the start of a year for the given date.
+   * The result will be in the local timezone.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The original date
+   *
+   * @returns The start of a year
+   *
+   * @example
+   * // The start of a year for 2 September 2014 11:55:00:
+   * const result = startOfYear(new Date(2014, 8, 2, 11, 55, 00))
+   * //=> Wed Jan 01 2014 00:00:00
+   */
+  function startOfYear(date) {
+    const cleanDate = toDate(date);
+    const _date = constructFrom(date, 0);
+    _date.setFullYear(cleanDate.getFullYear(), 0, 1);
+    _date.setHours(0, 0, 0, 0);
+    return _date;
+  }
+
+  /**
+   * @name endOfHour
+   * @category Hour Helpers
+   * @summary Return the end of an hour for the given date.
+   *
+   * @description
+   * Return the end of an hour for the given date.
+   * The result will be in the local timezone.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The original date
+   *
+   * @returns The end of an hour
+   *
+   * @example
+   * // The end of an hour for 2 September 2014 11:55:00:
+   * const result = endOfHour(new Date(2014, 8, 2, 11, 55))
+   * //=> Tue Sep 02 2014 11:59:59.999
+   */
+  function endOfHour(date) {
+    const _date = toDate(date);
+    _date.setMinutes(59, 59, 999);
+    return _date;
+  }
+
+  /**
+   * The {@link endOfWeek} function options.
+   */
+
+  /**
+   * @name endOfWeek
+   * @category Week Helpers
+   * @summary Return the end of a week for the given date.
+   *
+   * @description
+   * Return the end of a week for the given date.
+   * The result will be in the local timezone.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The original date
+   * @param options - An object with options
+   *
+   * @returns The end of a week
+   *
+   * @example
+   * // The end of a week for 2 September 2014 11:55:00:
+   * const result = endOfWeek(new Date(2014, 8, 2, 11, 55, 0))
+   * //=> Sat Sep 06 2014 23:59:59.999
+   *
+   * @example
+   * // If the week starts on Monday, the end of the week for 2 September 2014 11:55:00:
+   * const result = endOfWeek(new Date(2014, 8, 2, 11, 55, 0), { weekStartsOn: 1 })
+   * //=> Sun Sep 07 2014 23:59:59.999
+   */
+  function endOfWeek(date, options) {
+    const defaultOptions = getDefaultOptions$1();
+    const weekStartsOn =
+      options?.weekStartsOn ??
+      options?.locale?.options?.weekStartsOn ??
+      defaultOptions.weekStartsOn ??
+      defaultOptions.locale?.options?.weekStartsOn ??
+      0;
+
+    const _date = toDate(date);
+    const day = _date.getDay();
+    const diff = (day < weekStartsOn ? -7 : 0) + 6 - (day - weekStartsOn);
+
+    _date.setDate(_date.getDate() + diff);
+    _date.setHours(23, 59, 59, 999);
+    return _date;
+  }
+
+  /**
+   * @name endOfMinute
+   * @category Minute Helpers
+   * @summary Return the end of a minute for the given date.
+   *
+   * @description
+   * Return the end of a minute for the given date.
+   * The result will be in the local timezone.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The original date
+   *
+   * @returns The end of a minute
+   *
+   * @example
+   * // The end of a minute for 1 December 2014 22:15:45.400:
+   * const result = endOfMinute(new Date(2014, 11, 1, 22, 15, 45, 400))
+   * //=> Mon Dec 01 2014 22:15:59.999
+   */
+  function endOfMinute(date) {
+    const _date = toDate(date);
+    _date.setSeconds(59, 999);
+    return _date;
+  }
+
+  /**
+   * @name endOfQuarter
+   * @category Quarter Helpers
+   * @summary Return the end of a year quarter for the given date.
+   *
+   * @description
+   * Return the end of a year quarter for the given date.
+   * The result will be in the local timezone.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The original date
+   *
+   * @returns The end of a quarter
+   *
+   * @example
+   * // The end of a quarter for 2 September 2014 11:55:00:
+   * const result = endOfQuarter(new Date(2014, 8, 2, 11, 55, 0))
+   * //=> Tue Sep 30 2014 23:59:59.999
+   */
+  function endOfQuarter(date) {
+    const _date = toDate(date);
+    const currentMonth = _date.getMonth();
+    const month = currentMonth - (currentMonth % 3) + 3;
+    _date.setMonth(month, 0);
+    _date.setHours(23, 59, 59, 999);
+    return _date;
+  }
+
+  /**
+   * @name endOfSecond
+   * @category Second Helpers
+   * @summary Return the end of a second for the given date.
+   *
+   * @description
+   * Return the end of a second for the given date.
+   * The result will be in the local timezone.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The original date
+   *
+   * @returns The end of a second
+   *
+   * @example
+   * // The end of a second for 1 December 2014 22:15:45.400:
+   * const result = endOfSecond(new Date(2014, 11, 1, 22, 15, 45, 400))
+   * //=> Mon Dec 01 2014 22:15:45.999
+   */
+  function endOfSecond(date) {
+    const _date = toDate(date);
+    _date.setMilliseconds(999);
+    return _date;
+  }
+
+  const formatDistanceLocale = {
+    lessThanXSeconds: {
+      one: "less than a second",
+      other: "less than {{count}} seconds",
+    },
+
+    xSeconds: {
+      one: "1 second",
+      other: "{{count}} seconds",
+    },
+
+    halfAMinute: "half a minute",
+
+    lessThanXMinutes: {
+      one: "less than a minute",
+      other: "less than {{count}} minutes",
+    },
+
+    xMinutes: {
+      one: "1 minute",
+      other: "{{count}} minutes",
+    },
+
+    aboutXHours: {
+      one: "about 1 hour",
+      other: "about {{count}} hours",
+    },
+
+    xHours: {
+      one: "1 hour",
+      other: "{{count}} hours",
+    },
+
+    xDays: {
+      one: "1 day",
+      other: "{{count}} days",
+    },
+
+    aboutXWeeks: {
+      one: "about 1 week",
+      other: "about {{count}} weeks",
+    },
+
+    xWeeks: {
+      one: "1 week",
+      other: "{{count}} weeks",
+    },
+
+    aboutXMonths: {
+      one: "about 1 month",
+      other: "about {{count}} months",
+    },
+
+    xMonths: {
+      one: "1 month",
+      other: "{{count}} months",
+    },
+
+    aboutXYears: {
+      one: "about 1 year",
+      other: "about {{count}} years",
+    },
+
+    xYears: {
+      one: "1 year",
+      other: "{{count}} years",
+    },
+
+    overXYears: {
+      one: "over 1 year",
+      other: "over {{count}} years",
+    },
+
+    almostXYears: {
+      one: "almost 1 year",
+      other: "almost {{count}} years",
+    },
+  };
+
+  const formatDistance = (token, count, options) => {
+    let result;
+
+    const tokenValue = formatDistanceLocale[token];
+    if (typeof tokenValue === "string") {
+      result = tokenValue;
+    } else if (count === 1) {
+      result = tokenValue.one;
+    } else {
+      result = tokenValue.other.replace("{{count}}", count.toString());
+    }
+
+    if (options?.addSuffix) {
+      if (options.comparison && options.comparison > 0) {
+        return "in " + result;
+      } else {
+        return result + " ago";
+      }
+    }
+
+    return result;
+  };
+
+  function buildFormatLongFn(args) {
+    return (options = {}) => {
+      // TODO: Remove String()
+      const width = options.width ? String(options.width) : args.defaultWidth;
+      const format = args.formats[width] || args.formats[args.defaultWidth];
+      return format;
+    };
+  }
+
+  const dateFormats = {
+    full: "EEEE, MMMM do, y",
+    long: "MMMM do, y",
+    medium: "MMM d, y",
+    short: "MM/dd/yyyy",
+  };
+
+  const timeFormats = {
+    full: "h:mm:ss a zzzz",
+    long: "h:mm:ss a z",
+    medium: "h:mm:ss a",
+    short: "h:mm a",
+  };
+
+  const dateTimeFormats = {
+    full: "{{date}} 'at' {{time}}",
+    long: "{{date}} 'at' {{time}}",
+    medium: "{{date}}, {{time}}",
+    short: "{{date}}, {{time}}",
+  };
+
+  const formatLong = {
+    date: buildFormatLongFn({
+      formats: dateFormats,
+      defaultWidth: "full",
+    }),
+
+    time: buildFormatLongFn({
+      formats: timeFormats,
+      defaultWidth: "full",
+    }),
+
+    dateTime: buildFormatLongFn({
+      formats: dateTimeFormats,
+      defaultWidth: "full",
+    }),
+  };
+
+  const formatRelativeLocale = {
+    lastWeek: "'last' eeee 'at' p",
+    yesterday: "'yesterday at' p",
+    today: "'today at' p",
+    tomorrow: "'tomorrow at' p",
+    nextWeek: "eeee 'at' p",
+    other: "P",
+  };
+
+  const formatRelative = (token, _date, _baseDate, _options) =>
+    formatRelativeLocale[token];
+
+  /* eslint-disable no-unused-vars */
+
+  /**
+   * The localize function argument callback which allows to convert raw value to
+   * the actual type.
+   *
+   * @param value - The value to convert
+   *
+   * @returns The converted value
+   */
+
+  /**
+   * The map of localized values for each width.
+   */
+
+  /**
+   * The index type of the locale unit value. It types conversion of units of
+   * values that don't start at 0 (i.e. quarters).
+   */
+
+  /**
+   * Converts the unit value to the tuple of values.
+   */
+
+  /**
+   * The tuple of localized era values. The first element represents BC,
+   * the second element represents AD.
+   */
+
+  /**
+   * The tuple of localized quarter values. The first element represents Q1.
+   */
+
+  /**
+   * The tuple of localized day values. The first element represents Sunday.
+   */
+
+  /**
+   * The tuple of localized month values. The first element represents January.
+   */
+
+  function buildLocalizeFn(args) {
+    return (value, options) => {
+      const context = options?.context ? String(options.context) : "standalone";
+
+      let valuesArray;
+      if (context === "formatting" && args.formattingValues) {
+        const defaultWidth = args.defaultFormattingWidth || args.defaultWidth;
+        const width = options?.width ? String(options.width) : defaultWidth;
+
+        valuesArray =
+          args.formattingValues[width] || args.formattingValues[defaultWidth];
+      } else {
+        const defaultWidth = args.defaultWidth;
+        const width = options?.width ? String(options.width) : args.defaultWidth;
+
+        valuesArray = args.values[width] || args.values[defaultWidth];
+      }
+      const index = args.argumentCallback ? args.argumentCallback(value) : value;
+
+      // @ts-expect-error - For some reason TypeScript just don't want to match it, no matter how hard we try. I challenge you to try to remove it!
+      return valuesArray[index];
+    };
+  }
+
+  const eraValues = {
+    narrow: ["B", "A"],
+    abbreviated: ["BC", "AD"],
+    wide: ["Before Christ", "Anno Domini"],
+  };
+
+  const quarterValues = {
+    narrow: ["1", "2", "3", "4"],
+    abbreviated: ["Q1", "Q2", "Q3", "Q4"],
+    wide: ["1st quarter", "2nd quarter", "3rd quarter", "4th quarter"],
+  };
+
+  // Note: in English, the names of days of the week and months are capitalized.
+  // If you are making a new locale based on this one, check if the same is true for the language you're working on.
+  // Generally, formatted dates should look like they are in the middle of a sentence,
+  // e.g. in Spanish language the weekdays and months should be in the lowercase.
+  const monthValues = {
+    narrow: ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"],
+    abbreviated: [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ],
+
+    wide: [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ],
+  };
+
+  const dayValues = {
+    narrow: ["S", "M", "T", "W", "T", "F", "S"],
+    short: ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"],
+    abbreviated: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+    wide: [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+    ],
+  };
+
+  const dayPeriodValues = {
+    narrow: {
+      am: "a",
+      pm: "p",
+      midnight: "mi",
+      noon: "n",
+      morning: "morning",
+      afternoon: "afternoon",
+      evening: "evening",
+      night: "night",
+    },
+    abbreviated: {
+      am: "AM",
+      pm: "PM",
+      midnight: "midnight",
+      noon: "noon",
+      morning: "morning",
+      afternoon: "afternoon",
+      evening: "evening",
+      night: "night",
+    },
+    wide: {
+      am: "a.m.",
+      pm: "p.m.",
+      midnight: "midnight",
+      noon: "noon",
+      morning: "morning",
+      afternoon: "afternoon",
+      evening: "evening",
+      night: "night",
+    },
+  };
+
+  const formattingDayPeriodValues = {
+    narrow: {
+      am: "a",
+      pm: "p",
+      midnight: "mi",
+      noon: "n",
+      morning: "in the morning",
+      afternoon: "in the afternoon",
+      evening: "in the evening",
+      night: "at night",
+    },
+    abbreviated: {
+      am: "AM",
+      pm: "PM",
+      midnight: "midnight",
+      noon: "noon",
+      morning: "in the morning",
+      afternoon: "in the afternoon",
+      evening: "in the evening",
+      night: "at night",
+    },
+    wide: {
+      am: "a.m.",
+      pm: "p.m.",
+      midnight: "midnight",
+      noon: "noon",
+      morning: "in the morning",
+      afternoon: "in the afternoon",
+      evening: "in the evening",
+      night: "at night",
+    },
+  };
+
+  const ordinalNumber = (dirtyNumber, _options) => {
+    const number = Number(dirtyNumber);
+
+    // If ordinal numbers depend on context, for example,
+    // if they are different for different grammatical genders,
+    // use `options.unit`.
+    //
+    // `unit` can be 'year', 'quarter', 'month', 'week', 'date', 'dayOfYear',
+    // 'day', 'hour', 'minute', 'second'.
+
+    const rem100 = number % 100;
+    if (rem100 > 20 || rem100 < 10) {
+      switch (rem100 % 10) {
+        case 1:
+          return number + "st";
+        case 2:
+          return number + "nd";
+        case 3:
+          return number + "rd";
+      }
+    }
+    return number + "th";
+  };
+
+  const localize = {
+    ordinalNumber,
+
+    era: buildLocalizeFn({
+      values: eraValues,
+      defaultWidth: "wide",
+    }),
+
+    quarter: buildLocalizeFn({
+      values: quarterValues,
+      defaultWidth: "wide",
+      argumentCallback: (quarter) => quarter - 1,
+    }),
+
+    month: buildLocalizeFn({
+      values: monthValues,
+      defaultWidth: "wide",
+    }),
+
+    day: buildLocalizeFn({
+      values: dayValues,
+      defaultWidth: "wide",
+    }),
+
+    dayPeriod: buildLocalizeFn({
+      values: dayPeriodValues,
+      defaultWidth: "wide",
+      formattingValues: formattingDayPeriodValues,
+      defaultFormattingWidth: "wide",
+    }),
+  };
+
+  function buildMatchFn(args) {
+    return (string, options = {}) => {
+      const width = options.width;
+
+      const matchPattern =
+        (width && args.matchPatterns[width]) ||
+        args.matchPatterns[args.defaultMatchWidth];
+      const matchResult = string.match(matchPattern);
+
+      if (!matchResult) {
+        return null;
+      }
+      const matchedString = matchResult[0];
+
+      const parsePatterns =
+        (width && args.parsePatterns[width]) ||
+        args.parsePatterns[args.defaultParseWidth];
+
+      const key = Array.isArray(parsePatterns)
+        ? findIndex(parsePatterns, (pattern) => pattern.test(matchedString))
+        : // eslint-disable-next-line @typescript-eslint/no-explicit-any -- I challange you to fix the type
+          findKey(parsePatterns, (pattern) => pattern.test(matchedString));
+
+      let value;
+
+      value = args.valueCallback ? args.valueCallback(key) : key;
+      value = options.valueCallback
+        ? // eslint-disable-next-line @typescript-eslint/no-explicit-any -- I challange you to fix the type
+          options.valueCallback(value)
+        : value;
+
+      const rest = string.slice(matchedString.length);
+
+      return { value, rest };
+    };
+  }
+
+  function findKey(object, predicate) {
+    for (const key in object) {
+      if (
+        Object.prototype.hasOwnProperty.call(object, key) &&
+        predicate(object[key])
+      ) {
+        return key;
+      }
+    }
+    return undefined;
+  }
+
+  function findIndex(array, predicate) {
+    for (let key = 0; key < array.length; key++) {
+      if (predicate(array[key])) {
+        return key;
+      }
+    }
+    return undefined;
+  }
+
+  function buildMatchPatternFn(args) {
+    return (string, options = {}) => {
+      const matchResult = string.match(args.matchPattern);
+      if (!matchResult) return null;
+      const matchedString = matchResult[0];
+
+      const parseResult = string.match(args.parsePattern);
+      if (!parseResult) return null;
+      let value = args.valueCallback
+        ? args.valueCallback(parseResult[0])
+        : parseResult[0];
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- I challange you to fix the type
+      value = options.valueCallback ? options.valueCallback(value) : value;
+
+      const rest = string.slice(matchedString.length);
+
+      return { value, rest };
+    };
+  }
+
+  const matchOrdinalNumberPattern = /^(\d+)(th|st|nd|rd)?/i;
+  const parseOrdinalNumberPattern = /\d+/i;
+
+  const matchEraPatterns = {
+    narrow: /^(b|a)/i,
+    abbreviated: /^(b\.?\s?c\.?|b\.?\s?c\.?\s?e\.?|a\.?\s?d\.?|c\.?\s?e\.?)/i,
+    wide: /^(before christ|before common era|anno domini|common era)/i,
+  };
+  const parseEraPatterns = {
+    any: [/^b/i, /^(a|c)/i],
+  };
+
+  const matchQuarterPatterns = {
+    narrow: /^[1234]/i,
+    abbreviated: /^q[1234]/i,
+    wide: /^[1234](th|st|nd|rd)? quarter/i,
+  };
+  const parseQuarterPatterns = {
+    any: [/1/i, /2/i, /3/i, /4/i],
+  };
+
+  const matchMonthPatterns = {
+    narrow: /^[jfmasond]/i,
+    abbreviated: /^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i,
+    wide: /^(january|february|march|april|may|june|july|august|september|october|november|december)/i,
+  };
+  const parseMonthPatterns = {
+    narrow: [
+      /^j/i,
+      /^f/i,
+      /^m/i,
+      /^a/i,
+      /^m/i,
+      /^j/i,
+      /^j/i,
+      /^a/i,
+      /^s/i,
+      /^o/i,
+      /^n/i,
+      /^d/i,
+    ],
+
+    any: [
+      /^ja/i,
+      /^f/i,
+      /^mar/i,
+      /^ap/i,
+      /^may/i,
+      /^jun/i,
+      /^jul/i,
+      /^au/i,
+      /^s/i,
+      /^o/i,
+      /^n/i,
+      /^d/i,
+    ],
+  };
+
+  const matchDayPatterns = {
+    narrow: /^[smtwf]/i,
+    short: /^(su|mo|tu|we|th|fr|sa)/i,
+    abbreviated: /^(sun|mon|tue|wed|thu|fri|sat)/i,
+    wide: /^(sunday|monday|tuesday|wednesday|thursday|friday|saturday)/i,
+  };
+  const parseDayPatterns = {
+    narrow: [/^s/i, /^m/i, /^t/i, /^w/i, /^t/i, /^f/i, /^s/i],
+    any: [/^su/i, /^m/i, /^tu/i, /^w/i, /^th/i, /^f/i, /^sa/i],
+  };
+
+  const matchDayPeriodPatterns = {
+    narrow: /^(a|p|mi|n|(in the|at) (morning|afternoon|evening|night))/i,
+    any: /^([ap]\.?\s?m\.?|midnight|noon|(in the|at) (morning|afternoon|evening|night))/i,
+  };
+  const parseDayPeriodPatterns = {
+    any: {
+      am: /^a/i,
+      pm: /^p/i,
+      midnight: /^mi/i,
+      noon: /^no/i,
+      morning: /morning/i,
+      afternoon: /afternoon/i,
+      evening: /evening/i,
+      night: /night/i,
+    },
+  };
+
+  const match = {
+    ordinalNumber: buildMatchPatternFn({
+      matchPattern: matchOrdinalNumberPattern,
+      parsePattern: parseOrdinalNumberPattern,
+      valueCallback: (value) => parseInt(value, 10),
+    }),
+
+    era: buildMatchFn({
+      matchPatterns: matchEraPatterns,
+      defaultMatchWidth: "wide",
+      parsePatterns: parseEraPatterns,
+      defaultParseWidth: "any",
+    }),
+
+    quarter: buildMatchFn({
+      matchPatterns: matchQuarterPatterns,
+      defaultMatchWidth: "wide",
+      parsePatterns: parseQuarterPatterns,
+      defaultParseWidth: "any",
+      valueCallback: (index) => index + 1,
+    }),
+
+    month: buildMatchFn({
+      matchPatterns: matchMonthPatterns,
+      defaultMatchWidth: "wide",
+      parsePatterns: parseMonthPatterns,
+      defaultParseWidth: "any",
+    }),
+
+    day: buildMatchFn({
+      matchPatterns: matchDayPatterns,
+      defaultMatchWidth: "wide",
+      parsePatterns: parseDayPatterns,
+      defaultParseWidth: "any",
+    }),
+
+    dayPeriod: buildMatchFn({
+      matchPatterns: matchDayPeriodPatterns,
+      defaultMatchWidth: "any",
+      parsePatterns: parseDayPeriodPatterns,
+      defaultParseWidth: "any",
+    }),
+  };
+
+  /**
+   * @category Locales
+   * @summary English locale (United States).
+   * @language English
+   * @iso-639-2 eng
+   * @author Sasha Koss [@kossnocorp](https://github.com/kossnocorp)
+   * @author Lesha Koss [@leshakoss](https://github.com/leshakoss)
+   */
+  const enUS = {
+    code: "en-US",
+    formatDistance: formatDistance,
+    formatLong: formatLong,
+    formatRelative: formatRelative,
+    localize: localize,
+    match: match,
+    options: {
+      weekStartsOn: 0 /* Sunday */,
+      firstWeekContainsDate: 1,
+    },
+  };
+
+  /**
+   * @name getDayOfYear
+   * @category Day Helpers
+   * @summary Get the day of the year of the given date.
+   *
+   * @description
+   * Get the day of the year of the given date.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The given date
+   *
+   * @returns The day of year
+   *
+   * @example
+   * // Which day of the year is 2 July 2014?
+   * const result = getDayOfYear(new Date(2014, 6, 2))
+   * //=> 183
+   */
+  function getDayOfYear(date) {
+    const _date = toDate(date);
+    const diff = differenceInCalendarDays(_date, startOfYear(_date));
+    const dayOfYear = diff + 1;
+    return dayOfYear;
+  }
+
+  /**
+   * @name getISOWeek
+   * @category ISO Week Helpers
+   * @summary Get the ISO week of the given date.
+   *
+   * @description
+   * Get the ISO week of the given date.
+   *
+   * ISO week-numbering year: http://en.wikipedia.org/wiki/ISO_week_date
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The given date
+   *
+   * @returns The ISO week
+   *
+   * @example
+   * // Which week of the ISO-week numbering year is 2 January 2005?
+   * const result = getISOWeek(new Date(2005, 0, 2))
+   * //=> 53
+   */
+  function getISOWeek(date) {
+    const _date = toDate(date);
+    const diff = +startOfISOWeek(_date) - +startOfISOWeekYear(_date);
+
+    // Round the number of weeks to the nearest integer because the number of
+    // milliseconds in a week is not constant (e.g. it's different in the week of
+    // the daylight saving time clock shift).
+    return Math.round(diff / millisecondsInWeek) + 1;
+  }
+
+  /**
+   * The {@link getWeekYear} function options.
+   */
+
+  /**
+   * @name getWeekYear
+   * @category Week-Numbering Year Helpers
+   * @summary Get the local week-numbering year of the given date.
+   *
+   * @description
+   * Get the local week-numbering year of the given date.
+   * The exact calculation depends on the values of
+   * `options.weekStartsOn` (which is the index of the first day of the week)
+   * and `options.firstWeekContainsDate` (which is the day of January, which is always in
+   * the first week of the week-numbering year)
+   *
+   * Week numbering: https://en.wikipedia.org/wiki/Week#The_ISO_week_date_system
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The given date
+   * @param options - An object with options.
+   *
+   * @returns The local week-numbering year
+   *
+   * @example
+   * // Which week numbering year is 26 December 2004 with the default settings?
+   * const result = getWeekYear(new Date(2004, 11, 26))
+   * //=> 2005
+   *
+   * @example
+   * // Which week numbering year is 26 December 2004 if week starts on Saturday?
+   * const result = getWeekYear(new Date(2004, 11, 26), { weekStartsOn: 6 })
+   * //=> 2004
+   *
+   * @example
+   * // Which week numbering year is 26 December 2004 if the first week contains 4 January?
+   * const result = getWeekYear(new Date(2004, 11, 26), { firstWeekContainsDate: 4 })
+   * //=> 2004
+   */
+  function getWeekYear(date, options) {
+    const _date = toDate(date);
+    const year = _date.getFullYear();
+
+    const defaultOptions = getDefaultOptions$1();
+    const firstWeekContainsDate =
+      options?.firstWeekContainsDate ??
+      options?.locale?.options?.firstWeekContainsDate ??
+      defaultOptions.firstWeekContainsDate ??
+      defaultOptions.locale?.options?.firstWeekContainsDate ??
+      1;
+
+    const firstWeekOfNextYear = constructFrom(date, 0);
+    firstWeekOfNextYear.setFullYear(year + 1, 0, firstWeekContainsDate);
+    firstWeekOfNextYear.setHours(0, 0, 0, 0);
+    const startOfNextYear = startOfWeek(firstWeekOfNextYear, options);
+
+    const firstWeekOfThisYear = constructFrom(date, 0);
+    firstWeekOfThisYear.setFullYear(year, 0, firstWeekContainsDate);
+    firstWeekOfThisYear.setHours(0, 0, 0, 0);
+    const startOfThisYear = startOfWeek(firstWeekOfThisYear, options);
+
+    if (_date.getTime() >= startOfNextYear.getTime()) {
+      return year + 1;
+    } else if (_date.getTime() >= startOfThisYear.getTime()) {
+      return year;
+    } else {
+      return year - 1;
+    }
+  }
+
+  /**
+   * The {@link startOfWeekYear} function options.
+   */
+
+  /**
+   * @name startOfWeekYear
+   * @category Week-Numbering Year Helpers
+   * @summary Return the start of a local week-numbering year for the given date.
+   *
+   * @description
+   * Return the start of a local week-numbering year.
+   * The exact calculation depends on the values of
+   * `options.weekStartsOn` (which is the index of the first day of the week)
+   * and `options.firstWeekContainsDate` (which is the day of January, which is always in
+   * the first week of the week-numbering year)
+   *
+   * Week numbering: https://en.wikipedia.org/wiki/Week#The_ISO_week_date_system
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The original date
+   * @param options - An object with options
+   *
+   * @returns The start of a week-numbering year
+   *
+   * @example
+   * // The start of an a week-numbering year for 2 July 2005 with default settings:
+   * const result = startOfWeekYear(new Date(2005, 6, 2))
+   * //=> Sun Dec 26 2004 00:00:00
+   *
+   * @example
+   * // The start of a week-numbering year for 2 July 2005
+   * // if Monday is the first day of week
+   * // and 4 January is always in the first week of the year:
+   * const result = startOfWeekYear(new Date(2005, 6, 2), {
+   *   weekStartsOn: 1,
+   *   firstWeekContainsDate: 4
+   * })
+   * //=> Mon Jan 03 2005 00:00:00
+   */
+  function startOfWeekYear(date, options) {
+    const defaultOptions = getDefaultOptions$1();
+    const firstWeekContainsDate =
+      options?.firstWeekContainsDate ??
+      options?.locale?.options?.firstWeekContainsDate ??
+      defaultOptions.firstWeekContainsDate ??
+      defaultOptions.locale?.options?.firstWeekContainsDate ??
+      1;
+
+    const year = getWeekYear(date, options);
+    const firstWeek = constructFrom(date, 0);
+    firstWeek.setFullYear(year, 0, firstWeekContainsDate);
+    firstWeek.setHours(0, 0, 0, 0);
+    const _date = startOfWeek(firstWeek, options);
+    return _date;
+  }
+
+  /**
+   * The {@link getWeek} function options.
+   */
+
+  /**
+   * @name getWeek
+   * @category Week Helpers
+   * @summary Get the local week index of the given date.
+   *
+   * @description
+   * Get the local week index of the given date.
+   * The exact calculation depends on the values of
+   * `options.weekStartsOn` (which is the index of the first day of the week)
+   * and `options.firstWeekContainsDate` (which is the day of January, which is always in
+   * the first week of the week-numbering year)
+   *
+   * Week numbering: https://en.wikipedia.org/wiki/Week#The_ISO_week_date_system
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The given date
+   * @param options - An object with options
+   *
+   * @returns The week
+   *
+   * @example
+   * // Which week of the local week numbering year is 2 January 2005 with default options?
+   * const result = getWeek(new Date(2005, 0, 2))
+   * //=> 2
+   *
+   * @example
+   * // Which week of the local week numbering year is 2 January 2005,
+   * // if Monday is the first day of the week,
+   * // and the first week of the year always contains 4 January?
+   * const result = getWeek(new Date(2005, 0, 2), {
+   *   weekStartsOn: 1,
+   *   firstWeekContainsDate: 4
+   * })
+   * //=> 53
+   */
+
+  function getWeek(date, options) {
+    const _date = toDate(date);
+    const diff = +startOfWeek(_date, options) - +startOfWeekYear(_date, options);
+
+    // Round the number of weeks to the nearest integer because the number of
+    // milliseconds in a week is not constant (e.g. it's different in the week of
+    // the daylight saving time clock shift).
+    return Math.round(diff / millisecondsInWeek) + 1;
+  }
+
+  function addLeadingZeros(number, targetLength) {
+    const sign = number < 0 ? "-" : "";
+    const output = Math.abs(number).toString().padStart(targetLength, "0");
+    return sign + output;
+  }
+
+  /*
+   * |     | Unit                           |     | Unit                           |
+   * |-----|--------------------------------|-----|--------------------------------|
+   * |  a  | AM, PM                         |  A* |                                |
+   * |  d  | Day of month                   |  D  |                                |
+   * |  h  | Hour [1-12]                    |  H  | Hour [0-23]                    |
+   * |  m  | Minute                         |  M  | Month                          |
+   * |  s  | Second                         |  S  | Fraction of second             |
+   * |  y  | Year (abs)                     |  Y  |                                |
+   *
+   * Letters marked by * are not implemented but reserved by Unicode standard.
+   */
+
+  const lightFormatters = {
+    // Year
+    y(date, token) {
+      // From http://www.unicode.org/reports/tr35/tr35-31/tr35-dates.html#Date_Format_tokens
+      // | Year     |     y | yy |   yyy |  yyyy | yyyyy |
+      // |----------|-------|----|-------|-------|-------|
+      // | AD 1     |     1 | 01 |   001 |  0001 | 00001 |
+      // | AD 12    |    12 | 12 |   012 |  0012 | 00012 |
+      // | AD 123   |   123 | 23 |   123 |  0123 | 00123 |
+      // | AD 1234  |  1234 | 34 |  1234 |  1234 | 01234 |
+      // | AD 12345 | 12345 | 45 | 12345 | 12345 | 12345 |
+
+      const signedYear = date.getFullYear();
+      // Returns 1 for 1 BC (which is year 0 in JavaScript)
+      const year = signedYear > 0 ? signedYear : 1 - signedYear;
+      return addLeadingZeros(token === "yy" ? year % 100 : year, token.length);
+    },
+
+    // Month
+    M(date, token) {
+      const month = date.getMonth();
+      return token === "M" ? String(month + 1) : addLeadingZeros(month + 1, 2);
+    },
+
+    // Day of the month
+    d(date, token) {
+      return addLeadingZeros(date.getDate(), token.length);
+    },
+
+    // AM or PM
+    a(date, token) {
+      const dayPeriodEnumValue = date.getHours() / 12 >= 1 ? "pm" : "am";
+
+      switch (token) {
+        case "a":
+        case "aa":
+          return dayPeriodEnumValue.toUpperCase();
+        case "aaa":
+          return dayPeriodEnumValue;
+        case "aaaaa":
+          return dayPeriodEnumValue[0];
+        case "aaaa":
+        default:
+          return dayPeriodEnumValue === "am" ? "a.m." : "p.m.";
+      }
+    },
+
+    // Hour [1-12]
+    h(date, token) {
+      return addLeadingZeros(date.getHours() % 12 || 12, token.length);
+    },
+
+    // Hour [0-23]
+    H(date, token) {
+      return addLeadingZeros(date.getHours(), token.length);
+    },
+
+    // Minute
+    m(date, token) {
+      return addLeadingZeros(date.getMinutes(), token.length);
+    },
+
+    // Second
+    s(date, token) {
+      return addLeadingZeros(date.getSeconds(), token.length);
+    },
+
+    // Fraction of second
+    S(date, token) {
+      const numberOfDigits = token.length;
+      const milliseconds = date.getMilliseconds();
+      const fractionalSeconds = Math.trunc(
+        milliseconds * Math.pow(10, numberOfDigits - 3),
+      );
+      return addLeadingZeros(fractionalSeconds, token.length);
+    },
+  };
+
+  const dayPeriodEnum = {
+    am: "am",
+    pm: "pm",
+    midnight: "midnight",
+    noon: "noon",
+    morning: "morning",
+    afternoon: "afternoon",
+    evening: "evening",
+    night: "night",
+  };
+
+  /*
+   * |     | Unit                           |     | Unit                           |
+   * |-----|--------------------------------|-----|--------------------------------|
+   * |  a  | AM, PM                         |  A* | Milliseconds in day            |
+   * |  b  | AM, PM, noon, midnight         |  B  | Flexible day period            |
+   * |  c  | Stand-alone local day of week  |  C* | Localized hour w/ day period   |
+   * |  d  | Day of month                   |  D  | Day of year                    |
+   * |  e  | Local day of week              |  E  | Day of week                    |
+   * |  f  |                                |  F* | Day of week in month           |
+   * |  g* | Modified Julian day            |  G  | Era                            |
+   * |  h  | Hour [1-12]                    |  H  | Hour [0-23]                    |
+   * |  i! | ISO day of week                |  I! | ISO week of year               |
+   * |  j* | Localized hour w/ day period   |  J* | Localized hour w/o day period  |
+   * |  k  | Hour [1-24]                    |  K  | Hour [0-11]                    |
+   * |  l* | (deprecated)                   |  L  | Stand-alone month              |
+   * |  m  | Minute                         |  M  | Month                          |
+   * |  n  |                                |  N  |                                |
+   * |  o! | Ordinal number modifier        |  O  | Timezone (GMT)                 |
+   * |  p! | Long localized time            |  P! | Long localized date            |
+   * |  q  | Stand-alone quarter            |  Q  | Quarter                        |
+   * |  r* | Related Gregorian year         |  R! | ISO week-numbering year        |
+   * |  s  | Second                         |  S  | Fraction of second             |
+   * |  t! | Seconds timestamp              |  T! | Milliseconds timestamp         |
+   * |  u  | Extended year                  |  U* | Cyclic year                    |
+   * |  v* | Timezone (generic non-locat.)  |  V* | Timezone (location)            |
+   * |  w  | Local week of year             |  W* | Week of month                  |
+   * |  x  | Timezone (ISO-8601 w/o Z)      |  X  | Timezone (ISO-8601)            |
+   * |  y  | Year (abs)                     |  Y  | Local week-numbering year      |
+   * |  z  | Timezone (specific non-locat.) |  Z* | Timezone (aliases)             |
+   *
+   * Letters marked by * are not implemented but reserved by Unicode standard.
+   *
+   * Letters marked by ! are non-standard, but implemented by date-fns:
+   * - `o` modifies the previous token to turn it into an ordinal (see `format` docs)
+   * - `i` is ISO day of week. For `i` and `ii` is returns numeric ISO week days,
+   *   i.e. 7 for Sunday, 1 for Monday, etc.
+   * - `I` is ISO week of year, as opposed to `w` which is local week of year.
+   * - `R` is ISO week-numbering year, as opposed to `Y` which is local week-numbering year.
+   *   `R` is supposed to be used in conjunction with `I` and `i`
+   *   for universal ISO week-numbering date, whereas
+   *   `Y` is supposed to be used in conjunction with `w` and `e`
+   *   for week-numbering date specific to the locale.
+   * - `P` is long localized date format
+   * - `p` is long localized time format
+   */
+
+  const formatters = {
+    // Era
+    G: function (date, token, localize) {
+      const era = date.getFullYear() > 0 ? 1 : 0;
+      switch (token) {
+        // AD, BC
+        case "G":
+        case "GG":
+        case "GGG":
+          return localize.era(era, { width: "abbreviated" });
+        // A, B
+        case "GGGGG":
+          return localize.era(era, { width: "narrow" });
+        // Anno Domini, Before Christ
+        case "GGGG":
+        default:
+          return localize.era(era, { width: "wide" });
+      }
+    },
+
+    // Year
+    y: function (date, token, localize) {
+      // Ordinal number
+      if (token === "yo") {
+        const signedYear = date.getFullYear();
+        // Returns 1 for 1 BC (which is year 0 in JavaScript)
+        const year = signedYear > 0 ? signedYear : 1 - signedYear;
+        return localize.ordinalNumber(year, { unit: "year" });
+      }
+
+      return lightFormatters.y(date, token);
+    },
+
+    // Local week-numbering year
+    Y: function (date, token, localize, options) {
+      const signedWeekYear = getWeekYear(date, options);
+      // Returns 1 for 1 BC (which is year 0 in JavaScript)
+      const weekYear = signedWeekYear > 0 ? signedWeekYear : 1 - signedWeekYear;
+
+      // Two digit year
+      if (token === "YY") {
+        const twoDigitYear = weekYear % 100;
+        return addLeadingZeros(twoDigitYear, 2);
+      }
+
+      // Ordinal number
+      if (token === "Yo") {
+        return localize.ordinalNumber(weekYear, { unit: "year" });
+      }
+
+      // Padding
+      return addLeadingZeros(weekYear, token.length);
+    },
+
+    // ISO week-numbering year
+    R: function (date, token) {
+      const isoWeekYear = getISOWeekYear(date);
+
+      // Padding
+      return addLeadingZeros(isoWeekYear, token.length);
+    },
+
+    // Extended year. This is a single number designating the year of this calendar system.
+    // The main difference between `y` and `u` localizers are B.C. years:
+    // | Year | `y` | `u` |
+    // |------|-----|-----|
+    // | AC 1 |   1 |   1 |
+    // | BC 1 |   1 |   0 |
+    // | BC 2 |   2 |  -1 |
+    // Also `yy` always returns the last two digits of a year,
+    // while `uu` pads single digit years to 2 characters and returns other years unchanged.
+    u: function (date, token) {
+      const year = date.getFullYear();
+      return addLeadingZeros(year, token.length);
+    },
+
+    // Quarter
+    Q: function (date, token, localize) {
+      const quarter = Math.ceil((date.getMonth() + 1) / 3);
+      switch (token) {
+        // 1, 2, 3, 4
+        case "Q":
+          return String(quarter);
+        // 01, 02, 03, 04
+        case "QQ":
+          return addLeadingZeros(quarter, 2);
+        // 1st, 2nd, 3rd, 4th
+        case "Qo":
+          return localize.ordinalNumber(quarter, { unit: "quarter" });
+        // Q1, Q2, Q3, Q4
+        case "QQQ":
+          return localize.quarter(quarter, {
+            width: "abbreviated",
+            context: "formatting",
+          });
+        // 1, 2, 3, 4 (narrow quarter; could be not numerical)
+        case "QQQQQ":
+          return localize.quarter(quarter, {
+            width: "narrow",
+            context: "formatting",
+          });
+        // 1st quarter, 2nd quarter, ...
+        case "QQQQ":
+        default:
+          return localize.quarter(quarter, {
+            width: "wide",
+            context: "formatting",
+          });
+      }
+    },
+
+    // Stand-alone quarter
+    q: function (date, token, localize) {
+      const quarter = Math.ceil((date.getMonth() + 1) / 3);
+      switch (token) {
+        // 1, 2, 3, 4
+        case "q":
+          return String(quarter);
+        // 01, 02, 03, 04
+        case "qq":
+          return addLeadingZeros(quarter, 2);
+        // 1st, 2nd, 3rd, 4th
+        case "qo":
+          return localize.ordinalNumber(quarter, { unit: "quarter" });
+        // Q1, Q2, Q3, Q4
+        case "qqq":
+          return localize.quarter(quarter, {
+            width: "abbreviated",
+            context: "standalone",
+          });
+        // 1, 2, 3, 4 (narrow quarter; could be not numerical)
+        case "qqqqq":
+          return localize.quarter(quarter, {
+            width: "narrow",
+            context: "standalone",
+          });
+        // 1st quarter, 2nd quarter, ...
+        case "qqqq":
+        default:
+          return localize.quarter(quarter, {
+            width: "wide",
+            context: "standalone",
+          });
+      }
+    },
+
+    // Month
+    M: function (date, token, localize) {
+      const month = date.getMonth();
+      switch (token) {
+        case "M":
+        case "MM":
+          return lightFormatters.M(date, token);
+        // 1st, 2nd, ..., 12th
+        case "Mo":
+          return localize.ordinalNumber(month + 1, { unit: "month" });
+        // Jan, Feb, ..., Dec
+        case "MMM":
+          return localize.month(month, {
+            width: "abbreviated",
+            context: "formatting",
+          });
+        // J, F, ..., D
+        case "MMMMM":
+          return localize.month(month, {
+            width: "narrow",
+            context: "formatting",
+          });
+        // January, February, ..., December
+        case "MMMM":
+        default:
+          return localize.month(month, { width: "wide", context: "formatting" });
+      }
+    },
+
+    // Stand-alone month
+    L: function (date, token, localize) {
+      const month = date.getMonth();
+      switch (token) {
+        // 1, 2, ..., 12
+        case "L":
+          return String(month + 1);
+        // 01, 02, ..., 12
+        case "LL":
+          return addLeadingZeros(month + 1, 2);
+        // 1st, 2nd, ..., 12th
+        case "Lo":
+          return localize.ordinalNumber(month + 1, { unit: "month" });
+        // Jan, Feb, ..., Dec
+        case "LLL":
+          return localize.month(month, {
+            width: "abbreviated",
+            context: "standalone",
+          });
+        // J, F, ..., D
+        case "LLLLL":
+          return localize.month(month, {
+            width: "narrow",
+            context: "standalone",
+          });
+        // January, February, ..., December
+        case "LLLL":
+        default:
+          return localize.month(month, { width: "wide", context: "standalone" });
+      }
+    },
+
+    // Local week of year
+    w: function (date, token, localize, options) {
+      const week = getWeek(date, options);
+
+      if (token === "wo") {
+        return localize.ordinalNumber(week, { unit: "week" });
+      }
+
+      return addLeadingZeros(week, token.length);
+    },
+
+    // ISO week of year
+    I: function (date, token, localize) {
+      const isoWeek = getISOWeek(date);
+
+      if (token === "Io") {
+        return localize.ordinalNumber(isoWeek, { unit: "week" });
+      }
+
+      return addLeadingZeros(isoWeek, token.length);
+    },
+
+    // Day of the month
+    d: function (date, token, localize) {
+      if (token === "do") {
+        return localize.ordinalNumber(date.getDate(), { unit: "date" });
+      }
+
+      return lightFormatters.d(date, token);
+    },
+
+    // Day of year
+    D: function (date, token, localize) {
+      const dayOfYear = getDayOfYear(date);
+
+      if (token === "Do") {
+        return localize.ordinalNumber(dayOfYear, { unit: "dayOfYear" });
+      }
+
+      return addLeadingZeros(dayOfYear, token.length);
+    },
+
+    // Day of week
+    E: function (date, token, localize) {
+      const dayOfWeek = date.getDay();
+      switch (token) {
+        // Tue
+        case "E":
+        case "EE":
+        case "EEE":
+          return localize.day(dayOfWeek, {
+            width: "abbreviated",
+            context: "formatting",
+          });
+        // T
+        case "EEEEE":
+          return localize.day(dayOfWeek, {
+            width: "narrow",
+            context: "formatting",
+          });
+        // Tu
+        case "EEEEEE":
+          return localize.day(dayOfWeek, {
+            width: "short",
+            context: "formatting",
+          });
+        // Tuesday
+        case "EEEE":
+        default:
+          return localize.day(dayOfWeek, {
+            width: "wide",
+            context: "formatting",
+          });
+      }
+    },
+
+    // Local day of week
+    e: function (date, token, localize, options) {
+      const dayOfWeek = date.getDay();
+      const localDayOfWeek = (dayOfWeek - options.weekStartsOn + 8) % 7 || 7;
+      switch (token) {
+        // Numerical value (Nth day of week with current locale or weekStartsOn)
+        case "e":
+          return String(localDayOfWeek);
+        // Padded numerical value
+        case "ee":
+          return addLeadingZeros(localDayOfWeek, 2);
+        // 1st, 2nd, ..., 7th
+        case "eo":
+          return localize.ordinalNumber(localDayOfWeek, { unit: "day" });
+        case "eee":
+          return localize.day(dayOfWeek, {
+            width: "abbreviated",
+            context: "formatting",
+          });
+        // T
+        case "eeeee":
+          return localize.day(dayOfWeek, {
+            width: "narrow",
+            context: "formatting",
+          });
+        // Tu
+        case "eeeeee":
+          return localize.day(dayOfWeek, {
+            width: "short",
+            context: "formatting",
+          });
+        // Tuesday
+        case "eeee":
+        default:
+          return localize.day(dayOfWeek, {
+            width: "wide",
+            context: "formatting",
+          });
+      }
+    },
+
+    // Stand-alone local day of week
+    c: function (date, token, localize, options) {
+      const dayOfWeek = date.getDay();
+      const localDayOfWeek = (dayOfWeek - options.weekStartsOn + 8) % 7 || 7;
+      switch (token) {
+        // Numerical value (same as in `e`)
+        case "c":
+          return String(localDayOfWeek);
+        // Padded numerical value
+        case "cc":
+          return addLeadingZeros(localDayOfWeek, token.length);
+        // 1st, 2nd, ..., 7th
+        case "co":
+          return localize.ordinalNumber(localDayOfWeek, { unit: "day" });
+        case "ccc":
+          return localize.day(dayOfWeek, {
+            width: "abbreviated",
+            context: "standalone",
+          });
+        // T
+        case "ccccc":
+          return localize.day(dayOfWeek, {
+            width: "narrow",
+            context: "standalone",
+          });
+        // Tu
+        case "cccccc":
+          return localize.day(dayOfWeek, {
+            width: "short",
+            context: "standalone",
+          });
+        // Tuesday
+        case "cccc":
+        default:
+          return localize.day(dayOfWeek, {
+            width: "wide",
+            context: "standalone",
+          });
+      }
+    },
+
+    // ISO day of week
+    i: function (date, token, localize) {
+      const dayOfWeek = date.getDay();
+      const isoDayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek;
+      switch (token) {
+        // 2
+        case "i":
+          return String(isoDayOfWeek);
+        // 02
+        case "ii":
+          return addLeadingZeros(isoDayOfWeek, token.length);
+        // 2nd
+        case "io":
+          return localize.ordinalNumber(isoDayOfWeek, { unit: "day" });
+        // Tue
+        case "iii":
+          return localize.day(dayOfWeek, {
+            width: "abbreviated",
+            context: "formatting",
+          });
+        // T
+        case "iiiii":
+          return localize.day(dayOfWeek, {
+            width: "narrow",
+            context: "formatting",
+          });
+        // Tu
+        case "iiiiii":
+          return localize.day(dayOfWeek, {
+            width: "short",
+            context: "formatting",
+          });
+        // Tuesday
+        case "iiii":
+        default:
+          return localize.day(dayOfWeek, {
+            width: "wide",
+            context: "formatting",
+          });
+      }
+    },
+
+    // AM or PM
+    a: function (date, token, localize) {
+      const hours = date.getHours();
+      const dayPeriodEnumValue = hours / 12 >= 1 ? "pm" : "am";
+
+      switch (token) {
+        case "a":
+        case "aa":
+          return localize.dayPeriod(dayPeriodEnumValue, {
+            width: "abbreviated",
+            context: "formatting",
+          });
+        case "aaa":
+          return localize
+            .dayPeriod(dayPeriodEnumValue, {
+              width: "abbreviated",
+              context: "formatting",
+            })
+            .toLowerCase();
+        case "aaaaa":
+          return localize.dayPeriod(dayPeriodEnumValue, {
+            width: "narrow",
+            context: "formatting",
+          });
+        case "aaaa":
+        default:
+          return localize.dayPeriod(dayPeriodEnumValue, {
+            width: "wide",
+            context: "formatting",
+          });
+      }
+    },
+
+    // AM, PM, midnight, noon
+    b: function (date, token, localize) {
+      const hours = date.getHours();
+      let dayPeriodEnumValue;
+      if (hours === 12) {
+        dayPeriodEnumValue = dayPeriodEnum.noon;
+      } else if (hours === 0) {
+        dayPeriodEnumValue = dayPeriodEnum.midnight;
+      } else {
+        dayPeriodEnumValue = hours / 12 >= 1 ? "pm" : "am";
+      }
+
+      switch (token) {
+        case "b":
+        case "bb":
+          return localize.dayPeriod(dayPeriodEnumValue, {
+            width: "abbreviated",
+            context: "formatting",
+          });
+        case "bbb":
+          return localize
+            .dayPeriod(dayPeriodEnumValue, {
+              width: "abbreviated",
+              context: "formatting",
+            })
+            .toLowerCase();
+        case "bbbbb":
+          return localize.dayPeriod(dayPeriodEnumValue, {
+            width: "narrow",
+            context: "formatting",
+          });
+        case "bbbb":
+        default:
+          return localize.dayPeriod(dayPeriodEnumValue, {
+            width: "wide",
+            context: "formatting",
+          });
+      }
+    },
+
+    // in the morning, in the afternoon, in the evening, at night
+    B: function (date, token, localize) {
+      const hours = date.getHours();
+      let dayPeriodEnumValue;
+      if (hours >= 17) {
+        dayPeriodEnumValue = dayPeriodEnum.evening;
+      } else if (hours >= 12) {
+        dayPeriodEnumValue = dayPeriodEnum.afternoon;
+      } else if (hours >= 4) {
+        dayPeriodEnumValue = dayPeriodEnum.morning;
+      } else {
+        dayPeriodEnumValue = dayPeriodEnum.night;
+      }
+
+      switch (token) {
+        case "B":
+        case "BB":
+        case "BBB":
+          return localize.dayPeriod(dayPeriodEnumValue, {
+            width: "abbreviated",
+            context: "formatting",
+          });
+        case "BBBBB":
+          return localize.dayPeriod(dayPeriodEnumValue, {
+            width: "narrow",
+            context: "formatting",
+          });
+        case "BBBB":
+        default:
+          return localize.dayPeriod(dayPeriodEnumValue, {
+            width: "wide",
+            context: "formatting",
+          });
+      }
+    },
+
+    // Hour [1-12]
+    h: function (date, token, localize) {
+      if (token === "ho") {
+        let hours = date.getHours() % 12;
+        if (hours === 0) hours = 12;
+        return localize.ordinalNumber(hours, { unit: "hour" });
+      }
+
+      return lightFormatters.h(date, token);
+    },
+
+    // Hour [0-23]
+    H: function (date, token, localize) {
+      if (token === "Ho") {
+        return localize.ordinalNumber(date.getHours(), { unit: "hour" });
+      }
+
+      return lightFormatters.H(date, token);
+    },
+
+    // Hour [0-11]
+    K: function (date, token, localize) {
+      const hours = date.getHours() % 12;
+
+      if (token === "Ko") {
+        return localize.ordinalNumber(hours, { unit: "hour" });
+      }
+
+      return addLeadingZeros(hours, token.length);
+    },
+
+    // Hour [1-24]
+    k: function (date, token, localize) {
+      let hours = date.getHours();
+      if (hours === 0) hours = 24;
+
+      if (token === "ko") {
+        return localize.ordinalNumber(hours, { unit: "hour" });
+      }
+
+      return addLeadingZeros(hours, token.length);
+    },
+
+    // Minute
+    m: function (date, token, localize) {
+      if (token === "mo") {
+        return localize.ordinalNumber(date.getMinutes(), { unit: "minute" });
+      }
+
+      return lightFormatters.m(date, token);
+    },
+
+    // Second
+    s: function (date, token, localize) {
+      if (token === "so") {
+        return localize.ordinalNumber(date.getSeconds(), { unit: "second" });
+      }
+
+      return lightFormatters.s(date, token);
+    },
+
+    // Fraction of second
+    S: function (date, token) {
+      return lightFormatters.S(date, token);
+    },
+
+    // Timezone (ISO-8601. If offset is 0, output is always `'Z'`)
+    X: function (date, token, _localize) {
+      const timezoneOffset = date.getTimezoneOffset();
+
+      if (timezoneOffset === 0) {
+        return "Z";
+      }
+
+      switch (token) {
+        // Hours and optional minutes
+        case "X":
+          return formatTimezoneWithOptionalMinutes(timezoneOffset);
+
+        // Hours, minutes and optional seconds without `:` delimiter
+        // Note: neither ISO-8601 nor JavaScript supports seconds in timezone offsets
+        // so this token always has the same output as `XX`
+        case "XXXX":
+        case "XX": // Hours and minutes without `:` delimiter
+          return formatTimezone(timezoneOffset);
+
+        // Hours, minutes and optional seconds with `:` delimiter
+        // Note: neither ISO-8601 nor JavaScript supports seconds in timezone offsets
+        // so this token always has the same output as `XXX`
+        case "XXXXX":
+        case "XXX": // Hours and minutes with `:` delimiter
+        default:
+          return formatTimezone(timezoneOffset, ":");
+      }
+    },
+
+    // Timezone (ISO-8601. If offset is 0, output is `'+00:00'` or equivalent)
+    x: function (date, token, _localize) {
+      const timezoneOffset = date.getTimezoneOffset();
+
+      switch (token) {
+        // Hours and optional minutes
+        case "x":
+          return formatTimezoneWithOptionalMinutes(timezoneOffset);
+
+        // Hours, minutes and optional seconds without `:` delimiter
+        // Note: neither ISO-8601 nor JavaScript supports seconds in timezone offsets
+        // so this token always has the same output as `xx`
+        case "xxxx":
+        case "xx": // Hours and minutes without `:` delimiter
+          return formatTimezone(timezoneOffset);
+
+        // Hours, minutes and optional seconds with `:` delimiter
+        // Note: neither ISO-8601 nor JavaScript supports seconds in timezone offsets
+        // so this token always has the same output as `xxx`
+        case "xxxxx":
+        case "xxx": // Hours and minutes with `:` delimiter
+        default:
+          return formatTimezone(timezoneOffset, ":");
+      }
+    },
+
+    // Timezone (GMT)
+    O: function (date, token, _localize) {
+      const timezoneOffset = date.getTimezoneOffset();
+
+      switch (token) {
+        // Short
+        case "O":
+        case "OO":
+        case "OOO":
+          return "GMT" + formatTimezoneShort(timezoneOffset, ":");
+        // Long
+        case "OOOO":
+        default:
+          return "GMT" + formatTimezone(timezoneOffset, ":");
+      }
+    },
+
+    // Timezone (specific non-location)
+    z: function (date, token, _localize) {
+      const timezoneOffset = date.getTimezoneOffset();
+
+      switch (token) {
+        // Short
+        case "z":
+        case "zz":
+        case "zzz":
+          return "GMT" + formatTimezoneShort(timezoneOffset, ":");
+        // Long
+        case "zzzz":
+        default:
+          return "GMT" + formatTimezone(timezoneOffset, ":");
+      }
+    },
+
+    // Seconds timestamp
+    t: function (date, token, _localize) {
+      const timestamp = Math.trunc(date.getTime() / 1000);
+      return addLeadingZeros(timestamp, token.length);
+    },
+
+    // Milliseconds timestamp
+    T: function (date, token, _localize) {
+      const timestamp = date.getTime();
+      return addLeadingZeros(timestamp, token.length);
+    },
+  };
+
+  function formatTimezoneShort(offset, delimiter = "") {
+    const sign = offset > 0 ? "-" : "+";
+    const absOffset = Math.abs(offset);
+    const hours = Math.trunc(absOffset / 60);
+    const minutes = absOffset % 60;
+    if (minutes === 0) {
+      return sign + String(hours);
+    }
+    return sign + String(hours) + delimiter + addLeadingZeros(minutes, 2);
+  }
+
+  function formatTimezoneWithOptionalMinutes(offset, delimiter) {
+    if (offset % 60 === 0) {
+      const sign = offset > 0 ? "-" : "+";
+      return sign + addLeadingZeros(Math.abs(offset) / 60, 2);
+    }
+    return formatTimezone(offset, delimiter);
+  }
+
+  function formatTimezone(offset, delimiter = "") {
+    const sign = offset > 0 ? "-" : "+";
+    const absOffset = Math.abs(offset);
+    const hours = addLeadingZeros(Math.trunc(absOffset / 60), 2);
+    const minutes = addLeadingZeros(absOffset % 60, 2);
+    return sign + hours + delimiter + minutes;
+  }
+
+  const dateLongFormatter = (pattern, formatLong) => {
+    switch (pattern) {
+      case "P":
+        return formatLong.date({ width: "short" });
+      case "PP":
+        return formatLong.date({ width: "medium" });
+      case "PPP":
+        return formatLong.date({ width: "long" });
+      case "PPPP":
+      default:
+        return formatLong.date({ width: "full" });
+    }
+  };
+
+  const timeLongFormatter = (pattern, formatLong) => {
+    switch (pattern) {
+      case "p":
+        return formatLong.time({ width: "short" });
+      case "pp":
+        return formatLong.time({ width: "medium" });
+      case "ppp":
+        return formatLong.time({ width: "long" });
+      case "pppp":
+      default:
+        return formatLong.time({ width: "full" });
+    }
+  };
+
+  const dateTimeLongFormatter = (pattern, formatLong) => {
+    const matchResult = pattern.match(/(P+)(p+)?/) || [];
+    const datePattern = matchResult[1];
+    const timePattern = matchResult[2];
+
+    if (!timePattern) {
+      return dateLongFormatter(pattern, formatLong);
+    }
+
+    let dateTimeFormat;
+
+    switch (datePattern) {
+      case "P":
+        dateTimeFormat = formatLong.dateTime({ width: "short" });
+        break;
+      case "PP":
+        dateTimeFormat = formatLong.dateTime({ width: "medium" });
+        break;
+      case "PPP":
+        dateTimeFormat = formatLong.dateTime({ width: "long" });
+        break;
+      case "PPPP":
+      default:
+        dateTimeFormat = formatLong.dateTime({ width: "full" });
+        break;
+    }
+
+    return dateTimeFormat
+      .replace("{{date}}", dateLongFormatter(datePattern, formatLong))
+      .replace("{{time}}", timeLongFormatter(timePattern, formatLong));
+  };
+
+  const longFormatters = {
+    p: timeLongFormatter,
+    P: dateTimeLongFormatter,
+  };
+
+  const dayOfYearTokenRE = /^D+$/;
+  const weekYearTokenRE = /^Y+$/;
+
+  const throwTokens = ["D", "DD", "YY", "YYYY"];
+
+  function isProtectedDayOfYearToken(token) {
+    return dayOfYearTokenRE.test(token);
+  }
+
+  function isProtectedWeekYearToken(token) {
+    return weekYearTokenRE.test(token);
+  }
+
+  function warnOrThrowProtectedError(token, format, input) {
+    const _message = message(token, format, input);
+    console.warn(_message);
+    if (throwTokens.includes(token)) throw new RangeError(_message);
+  }
+
+  function message(token, format, input) {
+    const subject = token[0] === "Y" ? "years" : "days of the month";
+    return `Use \`${token.toLowerCase()}\` instead of \`${token}\` (in \`${format}\`) for formatting ${subject} to the input \`${input}\`; see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md`;
+  }
+
+  // This RegExp consists of three parts separated by `|`:
+  // - [yYQqMLwIdDecihHKkms]o matches any available ordinal number token
+  //   (one of the certain letters followed by `o`)
+  // - (\w)\1* matches any sequences of the same letter
+  // - '' matches two quote characters in a row
+  // - '(''|[^'])+('|$) matches anything surrounded by two quote characters ('),
+  //   except a single quote symbol, which ends the sequence.
+  //   Two quote characters do not end the sequence.
+  //   If there is no matching single quote
+  //   then the sequence will continue until the end of the string.
+  // - . matches any single character unmatched by previous parts of the RegExps
+  const formattingTokensRegExp$1 =
+    /[yYQqMLwIdDecihHKkms]o|(\w)\1*|''|'(''|[^'])+('|$)|./g;
+
+  // This RegExp catches symbols escaped by quotes, and also
+  // sequences of symbols P, p, and the combinations like `PPPPPPPppppp`
+  const longFormattingTokensRegExp$1 = /P+p+|P+|p+|''|'(''|[^'])+('|$)|./g;
+
+  const escapedStringRegExp$1 = /^'([^]*?)'?$/;
+  const doubleQuoteRegExp$1 = /''/g;
+  const unescapedLatinCharacterRegExp$1 = /[a-zA-Z]/;
+
+  /**
+   * The {@link format} function options.
+   */
+
+  /**
+   * @name format
+   * @alias formatDate
+   * @category Common Helpers
+   * @summary Format the date.
+   *
+   * @description
+   * Return the formatted date string in the given format. The result may vary by locale.
+   *
+   * > ⚠️ Please note that the `format` tokens differ from Moment.js and other libraries.
+   * > See: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
+   *
+   * The characters wrapped between two single quotes characters (') are escaped.
+   * Two single quotes in a row, whether inside or outside a quoted sequence, represent a 'real' single quote.
+   * (see the last example)
+   *
+   * Format of the string is based on Unicode Technical Standard #35:
+   * https://www.unicode.org/reports/tr35/tr35-dates.html#Date_Field_Symbol_Table
+   * with a few additions (see note 7 below the table).
+   *
+   * Accepted patterns:
+   * | Unit                            | Pattern | Result examples                   | Notes |
+   * |---------------------------------|---------|-----------------------------------|-------|
+   * | Era                             | G..GGG  | AD, BC                            |       |
+   * |                                 | GGGG    | Anno Domini, Before Christ        | 2     |
+   * |                                 | GGGGG   | A, B                              |       |
+   * | Calendar year                   | y       | 44, 1, 1900, 2017                 | 5     |
+   * |                                 | yo      | 44th, 1st, 0th, 17th              | 5,7   |
+   * |                                 | yy      | 44, 01, 00, 17                    | 5     |
+   * |                                 | yyy     | 044, 001, 1900, 2017              | 5     |
+   * |                                 | yyyy    | 0044, 0001, 1900, 2017            | 5     |
+   * |                                 | yyyyy   | ...                               | 3,5   |
+   * | Local week-numbering year       | Y       | 44, 1, 1900, 2017                 | 5     |
+   * |                                 | Yo      | 44th, 1st, 1900th, 2017th         | 5,7   |
+   * |                                 | YY      | 44, 01, 00, 17                    | 5,8   |
+   * |                                 | YYY     | 044, 001, 1900, 2017              | 5     |
+   * |                                 | YYYY    | 0044, 0001, 1900, 2017            | 5,8   |
+   * |                                 | YYYYY   | ...                               | 3,5   |
+   * | ISO week-numbering year         | R       | -43, 0, 1, 1900, 2017             | 5,7   |
+   * |                                 | RR      | -43, 00, 01, 1900, 2017           | 5,7   |
+   * |                                 | RRR     | -043, 000, 001, 1900, 2017        | 5,7   |
+   * |                                 | RRRR    | -0043, 0000, 0001, 1900, 2017     | 5,7   |
+   * |                                 | RRRRR   | ...                               | 3,5,7 |
+   * | Extended year                   | u       | -43, 0, 1, 1900, 2017             | 5     |
+   * |                                 | uu      | -43, 01, 1900, 2017               | 5     |
+   * |                                 | uuu     | -043, 001, 1900, 2017             | 5     |
+   * |                                 | uuuu    | -0043, 0001, 1900, 2017           | 5     |
+   * |                                 | uuuuu   | ...                               | 3,5   |
+   * | Quarter (formatting)            | Q       | 1, 2, 3, 4                        |       |
+   * |                                 | Qo      | 1st, 2nd, 3rd, 4th                | 7     |
+   * |                                 | QQ      | 01, 02, 03, 04                    |       |
+   * |                                 | QQQ     | Q1, Q2, Q3, Q4                    |       |
+   * |                                 | QQQQ    | 1st quarter, 2nd quarter, ...     | 2     |
+   * |                                 | QQQQQ   | 1, 2, 3, 4                        | 4     |
+   * | Quarter (stand-alone)           | q       | 1, 2, 3, 4                        |       |
+   * |                                 | qo      | 1st, 2nd, 3rd, 4th                | 7     |
+   * |                                 | qq      | 01, 02, 03, 04                    |       |
+   * |                                 | qqq     | Q1, Q2, Q3, Q4                    |       |
+   * |                                 | qqqq    | 1st quarter, 2nd quarter, ...     | 2     |
+   * |                                 | qqqqq   | 1, 2, 3, 4                        | 4     |
+   * | Month (formatting)              | M       | 1, 2, ..., 12                     |       |
+   * |                                 | Mo      | 1st, 2nd, ..., 12th               | 7     |
+   * |                                 | MM      | 01, 02, ..., 12                   |       |
+   * |                                 | MMM     | Jan, Feb, ..., Dec                |       |
+   * |                                 | MMMM    | January, February, ..., December  | 2     |
+   * |                                 | MMMMM   | J, F, ..., D                      |       |
+   * | Month (stand-alone)             | L       | 1, 2, ..., 12                     |       |
+   * |                                 | Lo      | 1st, 2nd, ..., 12th               | 7     |
+   * |                                 | LL      | 01, 02, ..., 12                   |       |
+   * |                                 | LLL     | Jan, Feb, ..., Dec                |       |
+   * |                                 | LLLL    | January, February, ..., December  | 2     |
+   * |                                 | LLLLL   | J, F, ..., D                      |       |
+   * | Local week of year              | w       | 1, 2, ..., 53                     |       |
+   * |                                 | wo      | 1st, 2nd, ..., 53th               | 7     |
+   * |                                 | ww      | 01, 02, ..., 53                   |       |
+   * | ISO week of year                | I       | 1, 2, ..., 53                     | 7     |
+   * |                                 | Io      | 1st, 2nd, ..., 53th               | 7     |
+   * |                                 | II      | 01, 02, ..., 53                   | 7     |
+   * | Day of month                    | d       | 1, 2, ..., 31                     |       |
+   * |                                 | do      | 1st, 2nd, ..., 31st               | 7     |
+   * |                                 | dd      | 01, 02, ..., 31                   |       |
+   * | Day of year                     | D       | 1, 2, ..., 365, 366               | 9     |
+   * |                                 | Do      | 1st, 2nd, ..., 365th, 366th       | 7     |
+   * |                                 | DD      | 01, 02, ..., 365, 366             | 9     |
+   * |                                 | DDD     | 001, 002, ..., 365, 366           |       |
+   * |                                 | DDDD    | ...                               | 3     |
+   * | Day of week (formatting)        | E..EEE  | Mon, Tue, Wed, ..., Sun           |       |
+   * |                                 | EEEE    | Monday, Tuesday, ..., Sunday      | 2     |
+   * |                                 | EEEEE   | M, T, W, T, F, S, S               |       |
+   * |                                 | EEEEEE  | Mo, Tu, We, Th, Fr, Sa, Su        |       |
+   * | ISO day of week (formatting)    | i       | 1, 2, 3, ..., 7                   | 7     |
+   * |                                 | io      | 1st, 2nd, ..., 7th                | 7     |
+   * |                                 | ii      | 01, 02, ..., 07                   | 7     |
+   * |                                 | iii     | Mon, Tue, Wed, ..., Sun           | 7     |
+   * |                                 | iiii    | Monday, Tuesday, ..., Sunday      | 2,7   |
+   * |                                 | iiiii   | M, T, W, T, F, S, S               | 7     |
+   * |                                 | iiiiii  | Mo, Tu, We, Th, Fr, Sa, Su        | 7     |
+   * | Local day of week (formatting)  | e       | 2, 3, 4, ..., 1                   |       |
+   * |                                 | eo      | 2nd, 3rd, ..., 1st                | 7     |
+   * |                                 | ee      | 02, 03, ..., 01                   |       |
+   * |                                 | eee     | Mon, Tue, Wed, ..., Sun           |       |
+   * |                                 | eeee    | Monday, Tuesday, ..., Sunday      | 2     |
+   * |                                 | eeeee   | M, T, W, T, F, S, S               |       |
+   * |                                 | eeeeee  | Mo, Tu, We, Th, Fr, Sa, Su        |       |
+   * | Local day of week (stand-alone) | c       | 2, 3, 4, ..., 1                   |       |
+   * |                                 | co      | 2nd, 3rd, ..., 1st                | 7     |
+   * |                                 | cc      | 02, 03, ..., 01                   |       |
+   * |                                 | ccc     | Mon, Tue, Wed, ..., Sun           |       |
+   * |                                 | cccc    | Monday, Tuesday, ..., Sunday      | 2     |
+   * |                                 | ccccc   | M, T, W, T, F, S, S               |       |
+   * |                                 | cccccc  | Mo, Tu, We, Th, Fr, Sa, Su        |       |
+   * | AM, PM                          | a..aa   | AM, PM                            |       |
+   * |                                 | aaa     | am, pm                            |       |
+   * |                                 | aaaa    | a.m., p.m.                        | 2     |
+   * |                                 | aaaaa   | a, p                              |       |
+   * | AM, PM, noon, midnight          | b..bb   | AM, PM, noon, midnight            |       |
+   * |                                 | bbb     | am, pm, noon, midnight            |       |
+   * |                                 | bbbb    | a.m., p.m., noon, midnight        | 2     |
+   * |                                 | bbbbb   | a, p, n, mi                       |       |
+   * | Flexible day period             | B..BBB  | at night, in the morning, ...     |       |
+   * |                                 | BBBB    | at night, in the morning, ...     | 2     |
+   * |                                 | BBBBB   | at night, in the morning, ...     |       |
+   * | Hour [1-12]                     | h       | 1, 2, ..., 11, 12                 |       |
+   * |                                 | ho      | 1st, 2nd, ..., 11th, 12th         | 7     |
+   * |                                 | hh      | 01, 02, ..., 11, 12               |       |
+   * | Hour [0-23]                     | H       | 0, 1, 2, ..., 23                  |       |
+   * |                                 | Ho      | 0th, 1st, 2nd, ..., 23rd          | 7     |
+   * |                                 | HH      | 00, 01, 02, ..., 23               |       |
+   * | Hour [0-11]                     | K       | 1, 2, ..., 11, 0                  |       |
+   * |                                 | Ko      | 1st, 2nd, ..., 11th, 0th          | 7     |
+   * |                                 | KK      | 01, 02, ..., 11, 00               |       |
+   * | Hour [1-24]                     | k       | 24, 1, 2, ..., 23                 |       |
+   * |                                 | ko      | 24th, 1st, 2nd, ..., 23rd         | 7     |
+   * |                                 | kk      | 24, 01, 02, ..., 23               |       |
+   * | Minute                          | m       | 0, 1, ..., 59                     |       |
+   * |                                 | mo      | 0th, 1st, ..., 59th               | 7     |
+   * |                                 | mm      | 00, 01, ..., 59                   |       |
+   * | Second                          | s       | 0, 1, ..., 59                     |       |
+   * |                                 | so      | 0th, 1st, ..., 59th               | 7     |
+   * |                                 | ss      | 00, 01, ..., 59                   |       |
+   * | Fraction of second              | S       | 0, 1, ..., 9                      |       |
+   * |                                 | SS      | 00, 01, ..., 99                   |       |
+   * |                                 | SSS     | 000, 001, ..., 999                |       |
+   * |                                 | SSSS    | ...                               | 3     |
+   * | Timezone (ISO-8601 w/ Z)        | X       | -08, +0530, Z                     |       |
+   * |                                 | XX      | -0800, +0530, Z                   |       |
+   * |                                 | XXX     | -08:00, +05:30, Z                 |       |
+   * |                                 | XXXX    | -0800, +0530, Z, +123456          | 2     |
+   * |                                 | XXXXX   | -08:00, +05:30, Z, +12:34:56      |       |
+   * | Timezone (ISO-8601 w/o Z)       | x       | -08, +0530, +00                   |       |
+   * |                                 | xx      | -0800, +0530, +0000               |       |
+   * |                                 | xxx     | -08:00, +05:30, +00:00            | 2     |
+   * |                                 | xxxx    | -0800, +0530, +0000, +123456      |       |
+   * |                                 | xxxxx   | -08:00, +05:30, +00:00, +12:34:56 |       |
+   * | Timezone (GMT)                  | O...OOO | GMT-8, GMT+5:30, GMT+0            |       |
+   * |                                 | OOOO    | GMT-08:00, GMT+05:30, GMT+00:00   | 2     |
+   * | Timezone (specific non-locat.)  | z...zzz | GMT-8, GMT+5:30, GMT+0            | 6     |
+   * |                                 | zzzz    | GMT-08:00, GMT+05:30, GMT+00:00   | 2,6   |
+   * | Seconds timestamp               | t       | 512969520                         | 7     |
+   * |                                 | tt      | ...                               | 3,7   |
+   * | Milliseconds timestamp          | T       | 512969520900                      | 7     |
+   * |                                 | TT      | ...                               | 3,7   |
+   * | Long localized date             | P       | 04/29/1453                        | 7     |
+   * |                                 | PP      | Apr 29, 1453                      | 7     |
+   * |                                 | PPP     | April 29th, 1453                  | 7     |
+   * |                                 | PPPP    | Friday, April 29th, 1453          | 2,7   |
+   * | Long localized time             | p       | 12:00 AM                          | 7     |
+   * |                                 | pp      | 12:00:00 AM                       | 7     |
+   * |                                 | ppp     | 12:00:00 AM GMT+2                 | 7     |
+   * |                                 | pppp    | 12:00:00 AM GMT+02:00             | 2,7   |
+   * | Combination of date and time    | Pp      | 04/29/1453, 12:00 AM              | 7     |
+   * |                                 | PPpp    | Apr 29, 1453, 12:00:00 AM         | 7     |
+   * |                                 | PPPppp  | April 29th, 1453 at ...           | 7     |
+   * |                                 | PPPPpppp| Friday, April 29th, 1453 at ...   | 2,7   |
+   * Notes:
+   * 1. "Formatting" units (e.g. formatting quarter) in the default en-US locale
+   *    are the same as "stand-alone" units, but are different in some languages.
+   *    "Formatting" units are declined according to the rules of the language
+   *    in the context of a date. "Stand-alone" units are always nominative singular:
+   *
+   *    `format(new Date(2017, 10, 6), 'do LLLL', {locale: cs}) //=> '6. listopad'`
+   *
+   *    `format(new Date(2017, 10, 6), 'do MMMM', {locale: cs}) //=> '6. listopadu'`
+   *
+   * 2. Any sequence of the identical letters is a pattern, unless it is escaped by
+   *    the single quote characters (see below).
+   *    If the sequence is longer than listed in table (e.g. `EEEEEEEEEEE`)
+   *    the output will be the same as default pattern for this unit, usually
+   *    the longest one (in case of ISO weekdays, `EEEE`). Default patterns for units
+   *    are marked with "2" in the last column of the table.
+   *
+   *    `format(new Date(2017, 10, 6), 'MMM') //=> 'Nov'`
+   *
+   *    `format(new Date(2017, 10, 6), 'MMMM') //=> 'November'`
+   *
+   *    `format(new Date(2017, 10, 6), 'MMMMM') //=> 'N'`
+   *
+   *    `format(new Date(2017, 10, 6), 'MMMMMM') //=> 'November'`
+   *
+   *    `format(new Date(2017, 10, 6), 'MMMMMMM') //=> 'November'`
+   *
+   * 3. Some patterns could be unlimited length (such as `yyyyyyyy`).
+   *    The output will be padded with zeros to match the length of the pattern.
+   *
+   *    `format(new Date(2017, 10, 6), 'yyyyyyyy') //=> '00002017'`
+   *
+   * 4. `QQQQQ` and `qqqqq` could be not strictly numerical in some locales.
+   *    These tokens represent the shortest form of the quarter.
+   *
+   * 5. The main difference between `y` and `u` patterns are B.C. years:
+   *
+   *    | Year | `y` | `u` |
+   *    |------|-----|-----|
+   *    | AC 1 |   1 |   1 |
+   *    | BC 1 |   1 |   0 |
+   *    | BC 2 |   2 |  -1 |
+   *
+   *    Also `yy` always returns the last two digits of a year,
+   *    while `uu` pads single digit years to 2 characters and returns other years unchanged:
+   *
+   *    | Year | `yy` | `uu` |
+   *    |------|------|------|
+   *    | 1    |   01 |   01 |
+   *    | 14   |   14 |   14 |
+   *    | 376  |   76 |  376 |
+   *    | 1453 |   53 | 1453 |
+   *
+   *    The same difference is true for local and ISO week-numbering years (`Y` and `R`),
+   *    except local week-numbering years are dependent on `options.weekStartsOn`
+   *    and `options.firstWeekContainsDate` (compare [getISOWeekYear](https://date-fns.org/docs/getISOWeekYear)
+   *    and [getWeekYear](https://date-fns.org/docs/getWeekYear)).
+   *
+   * 6. Specific non-location timezones are currently unavailable in `date-fns`,
+   *    so right now these tokens fall back to GMT timezones.
+   *
+   * 7. These patterns are not in the Unicode Technical Standard #35:
+   *    - `i`: ISO day of week
+   *    - `I`: ISO week of year
+   *    - `R`: ISO week-numbering year
+   *    - `t`: seconds timestamp
+   *    - `T`: milliseconds timestamp
+   *    - `o`: ordinal number modifier
+   *    - `P`: long localized date
+   *    - `p`: long localized time
+   *
+   * 8. `YY` and `YYYY` tokens represent week-numbering years but they are often confused with years.
+   *    You should enable `options.useAdditionalWeekYearTokens` to use them. See: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
+   *
+   * 9. `D` and `DD` tokens represent days of the year but they are often confused with days of the month.
+   *    You should enable `options.useAdditionalDayOfYearTokens` to use them. See: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The original date
+   * @param format - The string of tokens
+   * @param options - An object with options
+   *
+   * @returns The formatted date string
+   *
+   * @throws `date` must not be Invalid Date
+   * @throws `options.locale` must contain `localize` property
+   * @throws `options.locale` must contain `formatLong` property
+   * @throws use `yyyy` instead of `YYYY` for formatting years using [format provided] to the input [input provided]; see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
+   * @throws use `yy` instead of `YY` for formatting years using [format provided] to the input [input provided]; see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
+   * @throws use `d` instead of `D` for formatting days of the month using [format provided] to the input [input provided]; see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
+   * @throws use `dd` instead of `DD` for formatting days of the month using [format provided] to the input [input provided]; see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
+   * @throws format string contains an unescaped latin alphabet character
+   *
+   * @example
+   * // Represent 11 February 2014 in middle-endian format:
+   * const result = format(new Date(2014, 1, 11), 'MM/dd/yyyy')
+   * //=> '02/11/2014'
+   *
+   * @example
+   * // Represent 2 July 2014 in Esperanto:
+   * import { eoLocale } from 'date-fns/locale/eo'
+   * const result = format(new Date(2014, 6, 2), "do 'de' MMMM yyyy", {
+   *   locale: eoLocale
+   * })
+   * //=> '2-a de julio 2014'
+   *
+   * @example
+   * // Escape string by single quote characters:
+   * const result = format(new Date(2014, 6, 2, 15), "h 'o''clock'")
+   * //=> "3 o'clock"
+   */
+  function format(date, formatStr, options) {
+    const defaultOptions = getDefaultOptions$1();
+    const locale = options?.locale ?? defaultOptions.locale ?? enUS;
+
+    const firstWeekContainsDate =
+      options?.firstWeekContainsDate ??
+      options?.locale?.options?.firstWeekContainsDate ??
+      defaultOptions.firstWeekContainsDate ??
+      defaultOptions.locale?.options?.firstWeekContainsDate ??
+      1;
+
+    const weekStartsOn =
+      options?.weekStartsOn ??
+      options?.locale?.options?.weekStartsOn ??
+      defaultOptions.weekStartsOn ??
+      defaultOptions.locale?.options?.weekStartsOn ??
+      0;
+
+    const originalDate = toDate(date);
+
+    if (!isValid(originalDate)) {
+      throw new RangeError("Invalid time value");
+    }
+
+    let parts = formatStr
+      .match(longFormattingTokensRegExp$1)
+      .map((substring) => {
+        const firstCharacter = substring[0];
+        if (firstCharacter === "p" || firstCharacter === "P") {
+          const longFormatter = longFormatters[firstCharacter];
+          return longFormatter(substring, locale.formatLong);
+        }
+        return substring;
+      })
+      .join("")
+      .match(formattingTokensRegExp$1)
+      .map((substring) => {
+        // Replace two single quote characters with one single quote character
+        if (substring === "''") {
+          return { isToken: false, value: "'" };
+        }
+
+        const firstCharacter = substring[0];
+        if (firstCharacter === "'") {
+          return { isToken: false, value: cleanEscapedString$1(substring) };
+        }
+
+        if (formatters[firstCharacter]) {
+          return { isToken: true, value: substring };
+        }
+
+        if (firstCharacter.match(unescapedLatinCharacterRegExp$1)) {
+          throw new RangeError(
+            "Format string contains an unescaped latin alphabet character `" +
+              firstCharacter +
+              "`",
+          );
+        }
+
+        return { isToken: false, value: substring };
+      });
+
+    // invoke localize preprocessor (only for french locales at the moment)
+    if (locale.localize.preprocessor) {
+      parts = locale.localize.preprocessor(originalDate, parts);
+    }
+
+    const formatterOptions = {
+      firstWeekContainsDate,
+      weekStartsOn,
+      locale,
+    };
+
+    return parts
+      .map((part) => {
+        if (!part.isToken) return part.value;
+
+        const token = part.value;
+
+        if (
+          (!options?.useAdditionalWeekYearTokens &&
+            isProtectedWeekYearToken(token)) ||
+          (!options?.useAdditionalDayOfYearTokens &&
+            isProtectedDayOfYearToken(token))
+        ) {
+          warnOrThrowProtectedError(token, formatStr, String(date));
+        }
+
+        const formatter = formatters[token[0]];
+        return formatter(originalDate, token, locale.localize, formatterOptions);
+      })
+      .join("");
+  }
+
+  function cleanEscapedString$1(input) {
+    const matched = input.match(escapedStringRegExp$1);
+
+    if (!matched) {
+      return input;
+    }
+
+    return matched[1].replace(doubleQuoteRegExp$1, "'");
+  }
+
+  /**
+   * @name getDefaultOptions
+   * @category Common Helpers
+   * @summary Get default options.
+   * @pure false
+   *
+   * @description
+   * Returns an object that contains defaults for
+   * `options.locale`, `options.weekStartsOn` and `options.firstWeekContainsDate`
+   * arguments for all functions.
+   *
+   * You can change these with [setDefaultOptions](https://date-fns.org/docs/setDefaultOptions).
+   *
+   * @returns The default options
+   *
+   * @example
+   * const result = getDefaultOptions()
+   * //=> {}
+   *
+   * @example
+   * setDefaultOptions({ weekStarsOn: 1, firstWeekContainsDate: 4 })
+   * const result = getDefaultOptions()
+   * //=> { weekStarsOn: 1, firstWeekContainsDate: 4 }
+   */
+  function getDefaultOptions() {
+    return Object.assign({}, getDefaultOptions$1());
+  }
+
+  /**
+   * @name getISODay
+   * @category Weekday Helpers
+   * @summary Get the day of the ISO week of the given date.
+   *
+   * @description
+   * Get the day of the ISO week of the given date,
+   * which is 7 for Sunday, 1 for Monday etc.
+   *
+   * ISO week-numbering year: http://en.wikipedia.org/wiki/ISO_week_date
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The given date
+   *
+   * @returns The day of ISO week
+   *
+   * @example
+   * // Which day of the ISO week is 26 February 2012?
+   * const result = getISODay(new Date(2012, 1, 26))
+   * //=> 7
+   */
+  function getISODay(date) {
+    const _date = toDate(date);
+    let day = _date.getDay();
+
+    if (day === 0) {
+      day = 7;
+    }
+
+    return day;
+  }
+
+  /**
+   * @name transpose
+   * @category Generic Helpers
+   * @summary Transpose the date to the given constructor.
+   *
+   * @description
+   * The function transposes the date to the given constructor. It helps you
+   * to transpose the date in the system time zone to say `UTCDate` or any other
+   * date extension.
+   *
+   * @typeParam DateInputType - The input `Date` type derived from the passed argument.
+   * @typeParam DateOutputType - The output `Date` type derived from the passed constructor.
+   *
+   * @param fromDate - The date to use values from
+   * @param constructor - The date constructor to use
+   *
+   * @returns Date transposed to the given constructor
+   *
+   * @example
+   * // Create July 10, 2022 00:00 in locale time zone
+   * const date = new Date(2022, 6, 10)
+   * //=> 'Sun Jul 10 2022 00:00:00 GMT+0800 (Singapore Standard Time)'
+   *
+   * @example
+   * // Transpose the date to July 10, 2022 00:00 in UTC
+   * transpose(date, UTCDate)
+   * //=> 'Sun Jul 10 2022 00:00:00 GMT+0000 (Coordinated Universal Time)'
+   */
+  function transpose(fromDate, constructor) {
+    const date =
+      constructor instanceof Date
+        ? constructFrom(constructor, 0)
+        : new constructor(0);
+    date.setFullYear(
+      fromDate.getFullYear(),
+      fromDate.getMonth(),
+      fromDate.getDate(),
+    );
+    date.setHours(
+      fromDate.getHours(),
+      fromDate.getMinutes(),
+      fromDate.getSeconds(),
+      fromDate.getMilliseconds(),
+    );
+    return date;
+  }
+
+  const TIMEZONE_UNIT_PRIORITY = 10;
+
+  class Setter {
+    subPriority = 0;
+
+    validate(_utcDate, _options) {
+      return true;
+    }
+  }
+
+  class ValueSetter extends Setter {
+    constructor(
+      value,
+
+      validateValue,
+
+      setValue,
+
+      priority,
+      subPriority,
+    ) {
+      super();
+      this.value = value;
+      this.validateValue = validateValue;
+      this.setValue = setValue;
+      this.priority = priority;
+      if (subPriority) {
+        this.subPriority = subPriority;
+      }
+    }
+
+    validate(date, options) {
+      return this.validateValue(date, this.value, options);
+    }
+
+    set(date, flags, options) {
+      return this.setValue(date, flags, this.value, options);
+    }
+  }
+
+  class DateToSystemTimezoneSetter extends Setter {
+    priority = TIMEZONE_UNIT_PRIORITY;
+    subPriority = -1;
+    set(date, flags) {
+      if (flags.timestampIsSet) return date;
+      return constructFrom(date, transpose(date, Date));
+    }
+  }
+
+  class Parser {
+    run(dateString, token, match, options) {
+      const result = this.parse(dateString, token, match, options);
+      if (!result) {
+        return null;
+      }
+
+      return {
+        setter: new ValueSetter(
+          result.value,
+          this.validate,
+          this.set,
+          this.priority,
+          this.subPriority,
+        ),
+        rest: result.rest,
+      };
+    }
+
+    validate(_utcDate, _value, _options) {
+      return true;
+    }
+  }
+
+  class EraParser extends Parser {
+    priority = 140;
+
+    parse(dateString, token, match) {
+      switch (token) {
+        // AD, BC
+        case "G":
+        case "GG":
+        case "GGG":
+          return (
+            match.era(dateString, { width: "abbreviated" }) ||
+            match.era(dateString, { width: "narrow" })
+          );
+
+        // A, B
+        case "GGGGG":
+          return match.era(dateString, { width: "narrow" });
+        // Anno Domini, Before Christ
+        case "GGGG":
+        default:
+          return (
+            match.era(dateString, { width: "wide" }) ||
+            match.era(dateString, { width: "abbreviated" }) ||
+            match.era(dateString, { width: "narrow" })
+          );
+      }
+    }
+
+    set(date, flags, value) {
+      flags.era = value;
+      date.setFullYear(value, 0, 1);
+      date.setHours(0, 0, 0, 0);
+      return date;
+    }
+
+    incompatibleTokens = ["R", "u", "t", "T"];
+  }
+
+  const numericPatterns = {
+    month: /^(1[0-2]|0?\d)/, // 0 to 12
+    date: /^(3[0-1]|[0-2]?\d)/, // 0 to 31
+    dayOfYear: /^(36[0-6]|3[0-5]\d|[0-2]?\d?\d)/, // 0 to 366
+    week: /^(5[0-3]|[0-4]?\d)/, // 0 to 53
+    hour23h: /^(2[0-3]|[0-1]?\d)/, // 0 to 23
+    hour24h: /^(2[0-4]|[0-1]?\d)/, // 0 to 24
+    hour11h: /^(1[0-1]|0?\d)/, // 0 to 11
+    hour12h: /^(1[0-2]|0?\d)/, // 0 to 12
+    minute: /^[0-5]?\d/, // 0 to 59
+    second: /^[0-5]?\d/, // 0 to 59
+
+    singleDigit: /^\d/, // 0 to 9
+    twoDigits: /^\d{1,2}/, // 0 to 99
+    threeDigits: /^\d{1,3}/, // 0 to 999
+    fourDigits: /^\d{1,4}/, // 0 to 9999
+
+    anyDigitsSigned: /^-?\d+/,
+    singleDigitSigned: /^-?\d/, // 0 to 9, -0 to -9
+    twoDigitsSigned: /^-?\d{1,2}/, // 0 to 99, -0 to -99
+    threeDigitsSigned: /^-?\d{1,3}/, // 0 to 999, -0 to -999
+    fourDigitsSigned: /^-?\d{1,4}/, // 0 to 9999, -0 to -9999
+  };
+
+  const timezonePatterns = {
+    basicOptionalMinutes: /^([+-])(\d{2})(\d{2})?|Z/,
+    basic: /^([+-])(\d{2})(\d{2})|Z/,
+    basicOptionalSeconds: /^([+-])(\d{2})(\d{2})((\d{2}))?|Z/,
+    extended: /^([+-])(\d{2}):(\d{2})|Z/,
+    extendedOptionalSeconds: /^([+-])(\d{2}):(\d{2})(:(\d{2}))?|Z/,
+  };
+
+  function mapValue(parseFnResult, mapFn) {
+    if (!parseFnResult) {
+      return parseFnResult;
+    }
+
+    return {
+      value: mapFn(parseFnResult.value),
+      rest: parseFnResult.rest,
+    };
+  }
+
+  function parseNumericPattern(pattern, dateString) {
+    const matchResult = dateString.match(pattern);
+
+    if (!matchResult) {
+      return null;
+    }
+
+    return {
+      value: parseInt(matchResult[0], 10),
+      rest: dateString.slice(matchResult[0].length),
+    };
+  }
+
+  function parseTimezonePattern(pattern, dateString) {
+    const matchResult = dateString.match(pattern);
+
+    if (!matchResult) {
+      return null;
+    }
+
+    // Input is 'Z'
+    if (matchResult[0] === "Z") {
+      return {
+        value: 0,
+        rest: dateString.slice(1),
+      };
+    }
+
+    const sign = matchResult[1] === "+" ? 1 : -1;
+    const hours = matchResult[2] ? parseInt(matchResult[2], 10) : 0;
+    const minutes = matchResult[3] ? parseInt(matchResult[3], 10) : 0;
+    const seconds = matchResult[5] ? parseInt(matchResult[5], 10) : 0;
+
+    return {
+      value:
+        sign *
+        (hours * millisecondsInHour +
+          minutes * millisecondsInMinute +
+          seconds * millisecondsInSecond),
+      rest: dateString.slice(matchResult[0].length),
+    };
+  }
+
+  function parseAnyDigitsSigned(dateString) {
+    return parseNumericPattern(numericPatterns.anyDigitsSigned, dateString);
+  }
+
+  function parseNDigits(n, dateString) {
+    switch (n) {
+      case 1:
+        return parseNumericPattern(numericPatterns.singleDigit, dateString);
+      case 2:
+        return parseNumericPattern(numericPatterns.twoDigits, dateString);
+      case 3:
+        return parseNumericPattern(numericPatterns.threeDigits, dateString);
+      case 4:
+        return parseNumericPattern(numericPatterns.fourDigits, dateString);
+      default:
+        return parseNumericPattern(new RegExp("^\\d{1," + n + "}"), dateString);
+    }
+  }
+
+  function parseNDigitsSigned(n, dateString) {
+    switch (n) {
+      case 1:
+        return parseNumericPattern(numericPatterns.singleDigitSigned, dateString);
+      case 2:
+        return parseNumericPattern(numericPatterns.twoDigitsSigned, dateString);
+      case 3:
+        return parseNumericPattern(numericPatterns.threeDigitsSigned, dateString);
+      case 4:
+        return parseNumericPattern(numericPatterns.fourDigitsSigned, dateString);
+      default:
+        return parseNumericPattern(new RegExp("^-?\\d{1," + n + "}"), dateString);
+    }
+  }
+
+  function dayPeriodEnumToHours(dayPeriod) {
+    switch (dayPeriod) {
+      case "morning":
+        return 4;
+      case "evening":
+        return 17;
+      case "pm":
+      case "noon":
+      case "afternoon":
+        return 12;
+      case "am":
+      case "midnight":
+      case "night":
+      default:
+        return 0;
+    }
+  }
+
+  function normalizeTwoDigitYear(twoDigitYear, currentYear) {
+    const isCommonEra = currentYear > 0;
+    // Absolute number of the current year:
+    // 1 -> 1 AC
+    // 0 -> 1 BC
+    // -1 -> 2 BC
+    const absCurrentYear = isCommonEra ? currentYear : 1 - currentYear;
+
+    let result;
+    if (absCurrentYear <= 50) {
+      result = twoDigitYear || 100;
+    } else {
+      const rangeEnd = absCurrentYear + 50;
+      const rangeEndCentury = Math.trunc(rangeEnd / 100) * 100;
+      const isPreviousCentury = twoDigitYear >= rangeEnd % 100;
+      result = twoDigitYear + rangeEndCentury - (isPreviousCentury ? 100 : 0);
+    }
+
+    return isCommonEra ? result : 1 - result;
+  }
+
+  function isLeapYearIndex$1(year) {
+    return year % 400 === 0 || (year % 4 === 0 && year % 100 !== 0);
+  }
+
+  // From http://www.unicode.org/reports/tr35/tr35-31/tr35-dates.html#Date_Format_Patterns
+  // | Year     |     y | yy |   yyy |  yyyy | yyyyy |
+  // |----------|-------|----|-------|-------|-------|
+  // | AD 1     |     1 | 01 |   001 |  0001 | 00001 |
+  // | AD 12    |    12 | 12 |   012 |  0012 | 00012 |
+  // | AD 123   |   123 | 23 |   123 |  0123 | 00123 |
+  // | AD 1234  |  1234 | 34 |  1234 |  1234 | 01234 |
+  // | AD 12345 | 12345 | 45 | 12345 | 12345 | 12345 |
+  class YearParser extends Parser {
+    priority = 130;
+    incompatibleTokens = ["Y", "R", "u", "w", "I", "i", "e", "c", "t", "T"];
+
+    parse(dateString, token, match) {
+      const valueCallback = (year) => ({
+        year,
+        isTwoDigitYear: token === "yy",
+      });
+
+      switch (token) {
+        case "y":
+          return mapValue(parseNDigits(4, dateString), valueCallback);
+        case "yo":
+          return mapValue(
+            match.ordinalNumber(dateString, {
+              unit: "year",
+            }),
+            valueCallback,
+          );
+        default:
+          return mapValue(parseNDigits(token.length, dateString), valueCallback);
+      }
+    }
+
+    validate(_date, value) {
+      return value.isTwoDigitYear || value.year > 0;
+    }
+
+    set(date, flags, value) {
+      const currentYear = date.getFullYear();
+
+      if (value.isTwoDigitYear) {
+        const normalizedTwoDigitYear = normalizeTwoDigitYear(
+          value.year,
+          currentYear,
+        );
+        date.setFullYear(normalizedTwoDigitYear, 0, 1);
+        date.setHours(0, 0, 0, 0);
+        return date;
+      }
+
+      const year =
+        !("era" in flags) || flags.era === 1 ? value.year : 1 - value.year;
+      date.setFullYear(year, 0, 1);
+      date.setHours(0, 0, 0, 0);
+      return date;
+    }
+  }
+
+  // Local week-numbering year
+  class LocalWeekYearParser extends Parser {
+    priority = 130;
+
+    parse(dateString, token, match) {
+      const valueCallback = (year) => ({
+        year,
+        isTwoDigitYear: token === "YY",
+      });
+
+      switch (token) {
+        case "Y":
+          return mapValue(parseNDigits(4, dateString), valueCallback);
+        case "Yo":
+          return mapValue(
+            match.ordinalNumber(dateString, {
+              unit: "year",
+            }),
+            valueCallback,
+          );
+        default:
+          return mapValue(parseNDigits(token.length, dateString), valueCallback);
+      }
+    }
+
+    validate(_date, value) {
+      return value.isTwoDigitYear || value.year > 0;
+    }
+
+    set(date, flags, value, options) {
+      const currentYear = getWeekYear(date, options);
+
+      if (value.isTwoDigitYear) {
+        const normalizedTwoDigitYear = normalizeTwoDigitYear(
+          value.year,
+          currentYear,
+        );
+        date.setFullYear(
+          normalizedTwoDigitYear,
+          0,
+          options.firstWeekContainsDate,
+        );
+        date.setHours(0, 0, 0, 0);
+        return startOfWeek(date, options);
+      }
+
+      const year =
+        !("era" in flags) || flags.era === 1 ? value.year : 1 - value.year;
+      date.setFullYear(year, 0, options.firstWeekContainsDate);
+      date.setHours(0, 0, 0, 0);
+      return startOfWeek(date, options);
+    }
+
+    incompatibleTokens = [
+      "y",
+      "R",
+      "u",
+      "Q",
+      "q",
+      "M",
+      "L",
+      "I",
+      "d",
+      "D",
+      "i",
+      "t",
+      "T",
+    ];
+  }
+
+  // ISO week-numbering year
+  class ISOWeekYearParser extends Parser {
+    priority = 130;
+
+    parse(dateString, token) {
+      if (token === "R") {
+        return parseNDigitsSigned(4, dateString);
+      }
+
+      return parseNDigitsSigned(token.length, dateString);
+    }
+
+    set(date, _flags, value) {
+      const firstWeekOfYear = constructFrom(date, 0);
+      firstWeekOfYear.setFullYear(value, 0, 4);
+      firstWeekOfYear.setHours(0, 0, 0, 0);
+      return startOfISOWeek(firstWeekOfYear);
+    }
+
+    incompatibleTokens = [
+      "G",
+      "y",
+      "Y",
+      "u",
+      "Q",
+      "q",
+      "M",
+      "L",
+      "w",
+      "d",
+      "D",
+      "e",
+      "c",
+      "t",
+      "T",
+    ];
+  }
+
+  class ExtendedYearParser extends Parser {
+    priority = 130;
+
+    parse(dateString, token) {
+      if (token === "u") {
+        return parseNDigitsSigned(4, dateString);
+      }
+
+      return parseNDigitsSigned(token.length, dateString);
+    }
+
+    set(date, _flags, value) {
+      date.setFullYear(value, 0, 1);
+      date.setHours(0, 0, 0, 0);
+      return date;
+    }
+
+    incompatibleTokens = ["G", "y", "Y", "R", "w", "I", "i", "e", "c", "t", "T"];
+  }
+
+  class QuarterParser extends Parser {
+    priority = 120;
+
+    parse(dateString, token, match) {
+      switch (token) {
+        // 1, 2, 3, 4
+        case "Q":
+        case "QQ": // 01, 02, 03, 04
+          return parseNDigits(token.length, dateString);
+        // 1st, 2nd, 3rd, 4th
+        case "Qo":
+          return match.ordinalNumber(dateString, { unit: "quarter" });
+        // Q1, Q2, Q3, Q4
+        case "QQQ":
+          return (
+            match.quarter(dateString, {
+              width: "abbreviated",
+              context: "formatting",
+            }) ||
+            match.quarter(dateString, {
+              width: "narrow",
+              context: "formatting",
+            })
+          );
+
+        // 1, 2, 3, 4 (narrow quarter; could be not numerical)
+        case "QQQQQ":
+          return match.quarter(dateString, {
+            width: "narrow",
+            context: "formatting",
+          });
+        // 1st quarter, 2nd quarter, ...
+        case "QQQQ":
+        default:
+          return (
+            match.quarter(dateString, {
+              width: "wide",
+              context: "formatting",
+            }) ||
+            match.quarter(dateString, {
+              width: "abbreviated",
+              context: "formatting",
+            }) ||
+            match.quarter(dateString, {
+              width: "narrow",
+              context: "formatting",
+            })
+          );
+      }
+    }
+
+    validate(_date, value) {
+      return value >= 1 && value <= 4;
+    }
+
+    set(date, _flags, value) {
+      date.setMonth((value - 1) * 3, 1);
+      date.setHours(0, 0, 0, 0);
+      return date;
+    }
+
+    incompatibleTokens = [
+      "Y",
+      "R",
+      "q",
+      "M",
+      "L",
+      "w",
+      "I",
+      "d",
+      "D",
+      "i",
+      "e",
+      "c",
+      "t",
+      "T",
+    ];
+  }
+
+  class StandAloneQuarterParser extends Parser {
+    priority = 120;
+
+    parse(dateString, token, match) {
+      switch (token) {
+        // 1, 2, 3, 4
+        case "q":
+        case "qq": // 01, 02, 03, 04
+          return parseNDigits(token.length, dateString);
+        // 1st, 2nd, 3rd, 4th
+        case "qo":
+          return match.ordinalNumber(dateString, { unit: "quarter" });
+        // Q1, Q2, Q3, Q4
+        case "qqq":
+          return (
+            match.quarter(dateString, {
+              width: "abbreviated",
+              context: "standalone",
+            }) ||
+            match.quarter(dateString, {
+              width: "narrow",
+              context: "standalone",
+            })
+          );
+
+        // 1, 2, 3, 4 (narrow quarter; could be not numerical)
+        case "qqqqq":
+          return match.quarter(dateString, {
+            width: "narrow",
+            context: "standalone",
+          });
+        // 1st quarter, 2nd quarter, ...
+        case "qqqq":
+        default:
+          return (
+            match.quarter(dateString, {
+              width: "wide",
+              context: "standalone",
+            }) ||
+            match.quarter(dateString, {
+              width: "abbreviated",
+              context: "standalone",
+            }) ||
+            match.quarter(dateString, {
+              width: "narrow",
+              context: "standalone",
+            })
+          );
+      }
+    }
+
+    validate(_date, value) {
+      return value >= 1 && value <= 4;
+    }
+
+    set(date, _flags, value) {
+      date.setMonth((value - 1) * 3, 1);
+      date.setHours(0, 0, 0, 0);
+      return date;
+    }
+
+    incompatibleTokens = [
+      "Y",
+      "R",
+      "Q",
+      "M",
+      "L",
+      "w",
+      "I",
+      "d",
+      "D",
+      "i",
+      "e",
+      "c",
+      "t",
+      "T",
+    ];
+  }
+
+  class MonthParser extends Parser {
+    incompatibleTokens = [
+      "Y",
+      "R",
+      "q",
+      "Q",
+      "L",
+      "w",
+      "I",
+      "D",
+      "i",
+      "e",
+      "c",
+      "t",
+      "T",
+    ];
+
+    priority = 110;
+
+    parse(dateString, token, match) {
+      const valueCallback = (value) => value - 1;
+
+      switch (token) {
+        // 1, 2, ..., 12
+        case "M":
+          return mapValue(
+            parseNumericPattern(numericPatterns.month, dateString),
+            valueCallback,
+          );
+        // 01, 02, ..., 12
+        case "MM":
+          return mapValue(parseNDigits(2, dateString), valueCallback);
+        // 1st, 2nd, ..., 12th
+        case "Mo":
+          return mapValue(
+            match.ordinalNumber(dateString, {
+              unit: "month",
+            }),
+            valueCallback,
+          );
+        // Jan, Feb, ..., Dec
+        case "MMM":
+          return (
+            match.month(dateString, {
+              width: "abbreviated",
+              context: "formatting",
+            }) ||
+            match.month(dateString, { width: "narrow", context: "formatting" })
+          );
+
+        // J, F, ..., D
+        case "MMMMM":
+          return match.month(dateString, {
+            width: "narrow",
+            context: "formatting",
+          });
+        // January, February, ..., December
+        case "MMMM":
+        default:
+          return (
+            match.month(dateString, { width: "wide", context: "formatting" }) ||
+            match.month(dateString, {
+              width: "abbreviated",
+              context: "formatting",
+            }) ||
+            match.month(dateString, { width: "narrow", context: "formatting" })
+          );
+      }
+    }
+
+    validate(_date, value) {
+      return value >= 0 && value <= 11;
+    }
+
+    set(date, _flags, value) {
+      date.setMonth(value, 1);
+      date.setHours(0, 0, 0, 0);
+      return date;
+    }
+  }
+
+  class StandAloneMonthParser extends Parser {
+    priority = 110;
+
+    parse(dateString, token, match) {
+      const valueCallback = (value) => value - 1;
+
+      switch (token) {
+        // 1, 2, ..., 12
+        case "L":
+          return mapValue(
+            parseNumericPattern(numericPatterns.month, dateString),
+            valueCallback,
+          );
+        // 01, 02, ..., 12
+        case "LL":
+          return mapValue(parseNDigits(2, dateString), valueCallback);
+        // 1st, 2nd, ..., 12th
+        case "Lo":
+          return mapValue(
+            match.ordinalNumber(dateString, {
+              unit: "month",
+            }),
+            valueCallback,
+          );
+        // Jan, Feb, ..., Dec
+        case "LLL":
+          return (
+            match.month(dateString, {
+              width: "abbreviated",
+              context: "standalone",
+            }) ||
+            match.month(dateString, { width: "narrow", context: "standalone" })
+          );
+
+        // J, F, ..., D
+        case "LLLLL":
+          return match.month(dateString, {
+            width: "narrow",
+            context: "standalone",
+          });
+        // January, February, ..., December
+        case "LLLL":
+        default:
+          return (
+            match.month(dateString, { width: "wide", context: "standalone" }) ||
+            match.month(dateString, {
+              width: "abbreviated",
+              context: "standalone",
+            }) ||
+            match.month(dateString, { width: "narrow", context: "standalone" })
+          );
+      }
+    }
+
+    validate(_date, value) {
+      return value >= 0 && value <= 11;
+    }
+
+    set(date, _flags, value) {
+      date.setMonth(value, 1);
+      date.setHours(0, 0, 0, 0);
+      return date;
+    }
+
+    incompatibleTokens = [
+      "Y",
+      "R",
+      "q",
+      "Q",
+      "M",
+      "w",
+      "I",
+      "D",
+      "i",
+      "e",
+      "c",
+      "t",
+      "T",
+    ];
+  }
+
+  /**
+   * The {@link setWeek} function options.
+   */
+
+  /**
+   * @name setWeek
+   * @category Week Helpers
+   * @summary Set the local week to the given date.
+   *
+   * @description
+   * Set the local week to the given date, saving the weekday number.
+   * The exact calculation depends on the values of
+   * `options.weekStartsOn` (which is the index of the first day of the week)
+   * and `options.firstWeekContainsDate` (which is the day of January, which is always in
+   * the first week of the week-numbering year)
+   *
+   * Week numbering: https://en.wikipedia.org/wiki/Week#The_ISO_week_date_system
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The date to be changed
+   * @param week - The week of the new date
+   * @param options - An object with options
+   *
+   * @returns The new date with the local week set
+   *
+   * @example
+   * // Set the 1st week to 2 January 2005 with default options:
+   * const result = setWeek(new Date(2005, 0, 2), 1)
+   * //=> Sun Dec 26 2004 00:00:00
+   *
+   * @example
+   * // Set the 1st week to 2 January 2005,
+   * // if Monday is the first day of the week,
+   * // and the first week of the year always contains 4 January:
+   * const result = setWeek(new Date(2005, 0, 2), 1, {
+   *   weekStartsOn: 1,
+   *   firstWeekContainsDate: 4
+   * })
+   * //=> Sun Jan 4 2004 00:00:00
+   */
+  function setWeek(date, week, options) {
+    const _date = toDate(date);
+    const diff = getWeek(_date, options) - week;
+    _date.setDate(_date.getDate() - diff * 7);
+    return _date;
+  }
+
+  // Local week of year
+  class LocalWeekParser extends Parser {
+    priority = 100;
+
+    parse(dateString, token, match) {
+      switch (token) {
+        case "w":
+          return parseNumericPattern(numericPatterns.week, dateString);
+        case "wo":
+          return match.ordinalNumber(dateString, { unit: "week" });
+        default:
+          return parseNDigits(token.length, dateString);
+      }
+    }
+
+    validate(_date, value) {
+      return value >= 1 && value <= 53;
+    }
+
+    set(date, _flags, value, options) {
+      return startOfWeek(setWeek(date, value, options), options);
+    }
+
+    incompatibleTokens = [
+      "y",
+      "R",
+      "u",
+      "q",
+      "Q",
+      "M",
+      "L",
+      "I",
+      "d",
+      "D",
+      "i",
+      "t",
+      "T",
+    ];
+  }
+
+  /**
+   * @name setISOWeek
+   * @category ISO Week Helpers
+   * @summary Set the ISO week to the given date.
+   *
+   * @description
+   * Set the ISO week to the given date, saving the weekday number.
+   *
+   * ISO week-numbering year: http://en.wikipedia.org/wiki/ISO_week_date
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The date to be changed
+   * @param week - The ISO week of the new date
+   *
+   * @returns The new date with the ISO week set
+   *
+   * @example
+   * // Set the 53rd ISO week to 7 August 2004:
+   * const result = setISOWeek(new Date(2004, 7, 7), 53)
+   * //=> Sat Jan 01 2005 00:00:00
+   */
+  function setISOWeek(date, week) {
+    const _date = toDate(date);
+    const diff = getISOWeek(_date) - week;
+    _date.setDate(_date.getDate() - diff * 7);
+    return _date;
+  }
+
+  // ISO week of year
+  class ISOWeekParser extends Parser {
+    priority = 100;
+
+    parse(dateString, token, match) {
+      switch (token) {
+        case "I":
+          return parseNumericPattern(numericPatterns.week, dateString);
+        case "Io":
+          return match.ordinalNumber(dateString, { unit: "week" });
+        default:
+          return parseNDigits(token.length, dateString);
+      }
+    }
+
+    validate(_date, value) {
+      return value >= 1 && value <= 53;
+    }
+
+    set(date, _flags, value) {
+      return startOfISOWeek(setISOWeek(date, value));
+    }
+
+    incompatibleTokens = [
+      "y",
+      "Y",
+      "u",
+      "q",
+      "Q",
+      "M",
+      "L",
+      "w",
+      "d",
+      "D",
+      "e",
+      "c",
+      "t",
+      "T",
+    ];
+  }
+
+  const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const DAYS_IN_MONTH_LEAP_YEAR = [
+    31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31,
+  ];
+
+  // Day of the month
+  class DateParser extends Parser {
+    priority = 90;
+    subPriority = 1;
+
+    parse(dateString, token, match) {
+      switch (token) {
+        case "d":
+          return parseNumericPattern(numericPatterns.date, dateString);
+        case "do":
+          return match.ordinalNumber(dateString, { unit: "date" });
+        default:
+          return parseNDigits(token.length, dateString);
+      }
+    }
+
+    validate(date, value) {
+      const year = date.getFullYear();
+      const isLeapYear = isLeapYearIndex$1(year);
+      const month = date.getMonth();
+      if (isLeapYear) {
+        return value >= 1 && value <= DAYS_IN_MONTH_LEAP_YEAR[month];
+      } else {
+        return value >= 1 && value <= DAYS_IN_MONTH[month];
+      }
+    }
+
+    set(date, _flags, value) {
+      date.setDate(value);
+      date.setHours(0, 0, 0, 0);
+      return date;
+    }
+
+    incompatibleTokens = [
+      "Y",
+      "R",
+      "q",
+      "Q",
+      "w",
+      "I",
+      "D",
+      "i",
+      "e",
+      "c",
+      "t",
+      "T",
+    ];
+  }
+
+  class DayOfYearParser extends Parser {
+    priority = 90;
+
+    subpriority = 1;
+
+    parse(dateString, token, match) {
+      switch (token) {
+        case "D":
+        case "DD":
+          return parseNumericPattern(numericPatterns.dayOfYear, dateString);
+        case "Do":
+          return match.ordinalNumber(dateString, { unit: "date" });
+        default:
+          return parseNDigits(token.length, dateString);
+      }
+    }
+
+    validate(date, value) {
+      const year = date.getFullYear();
+      const isLeapYear = isLeapYearIndex$1(year);
+      if (isLeapYear) {
+        return value >= 1 && value <= 366;
+      } else {
+        return value >= 1 && value <= 365;
+      }
+    }
+
+    set(date, _flags, value) {
+      date.setMonth(0, value);
+      date.setHours(0, 0, 0, 0);
+      return date;
+    }
+
+    incompatibleTokens = [
+      "Y",
+      "R",
+      "q",
+      "Q",
+      "M",
+      "L",
+      "w",
+      "I",
+      "d",
+      "E",
+      "i",
+      "e",
+      "c",
+      "t",
+      "T",
+    ];
+  }
+
+  /**
+   * The {@link setDay} function options.
+   */
+
+  /**
+   * @name setDay
+   * @category Weekday Helpers
+   * @summary Set the day of the week to the given date.
+   *
+   * @description
+   * Set the day of the week to the given date.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The date to be changed
+   * @param day - The day of the week of the new date
+   * @param options - An object with options.
+   *
+   * @returns The new date with the day of the week set
+   *
+   * @example
+   * // Set week day to Sunday, with the default weekStartsOn of Sunday:
+   * const result = setDay(new Date(2014, 8, 1), 0)
+   * //=> Sun Aug 31 2014 00:00:00
+   *
+   * @example
+   * // Set week day to Sunday, with a weekStartsOn of Monday:
+   * const result = setDay(new Date(2014, 8, 1), 0, { weekStartsOn: 1 })
+   * //=> Sun Sep 07 2014 00:00:00
+   */
+  function setDay(date, day, options) {
+    const defaultOptions = getDefaultOptions$1();
+    const weekStartsOn =
+      options?.weekStartsOn ??
+      options?.locale?.options?.weekStartsOn ??
+      defaultOptions.weekStartsOn ??
+      defaultOptions.locale?.options?.weekStartsOn ??
+      0;
+
+    const _date = toDate(date);
+    const currentDay = _date.getDay();
+
+    const remainder = day % 7;
+    const dayIndex = (remainder + 7) % 7;
+
+    const delta = 7 - weekStartsOn;
+    const diff =
+      day < 0 || day > 6
+        ? day - ((currentDay + delta) % 7)
+        : ((dayIndex + delta) % 7) - ((currentDay + delta) % 7);
+    return addDays(_date, diff);
+  }
+
+  // Day of week
+  class DayParser extends Parser {
+    priority = 90;
+
+    parse(dateString, token, match) {
+      switch (token) {
+        // Tue
+        case "E":
+        case "EE":
+        case "EEE":
+          return (
+            match.day(dateString, {
+              width: "abbreviated",
+              context: "formatting",
+            }) ||
+            match.day(dateString, { width: "short", context: "formatting" }) ||
+            match.day(dateString, { width: "narrow", context: "formatting" })
+          );
+
+        // T
+        case "EEEEE":
+          return match.day(dateString, {
+            width: "narrow",
+            context: "formatting",
+          });
+        // Tu
+        case "EEEEEE":
+          return (
+            match.day(dateString, { width: "short", context: "formatting" }) ||
+            match.day(dateString, { width: "narrow", context: "formatting" })
+          );
+
+        // Tuesday
+        case "EEEE":
+        default:
+          return (
+            match.day(dateString, { width: "wide", context: "formatting" }) ||
+            match.day(dateString, {
+              width: "abbreviated",
+              context: "formatting",
+            }) ||
+            match.day(dateString, { width: "short", context: "formatting" }) ||
+            match.day(dateString, { width: "narrow", context: "formatting" })
+          );
+      }
+    }
+
+    validate(_date, value) {
+      return value >= 0 && value <= 6;
+    }
+
+    set(date, _flags, value, options) {
+      date = setDay(date, value, options);
+      date.setHours(0, 0, 0, 0);
+      return date;
+    }
+
+    incompatibleTokens = ["D", "i", "e", "c", "t", "T"];
+  }
+
+  // Local day of week
+  class LocalDayParser extends Parser {
+    priority = 90;
+    parse(dateString, token, match, options) {
+      const valueCallback = (value) => {
+        // We want here floor instead of trunc, so we get -7 for value 0 instead of 0
+        const wholeWeekDays = Math.floor((value - 1) / 7) * 7;
+        return ((value + options.weekStartsOn + 6) % 7) + wholeWeekDays;
+      };
+
+      switch (token) {
+        // 3
+        case "e":
+        case "ee": // 03
+          return mapValue(parseNDigits(token.length, dateString), valueCallback);
+        // 3rd
+        case "eo":
+          return mapValue(
+            match.ordinalNumber(dateString, {
+              unit: "day",
+            }),
+            valueCallback,
+          );
+        // Tue
+        case "eee":
+          return (
+            match.day(dateString, {
+              width: "abbreviated",
+              context: "formatting",
+            }) ||
+            match.day(dateString, { width: "short", context: "formatting" }) ||
+            match.day(dateString, { width: "narrow", context: "formatting" })
+          );
+
+        // T
+        case "eeeee":
+          return match.day(dateString, {
+            width: "narrow",
+            context: "formatting",
+          });
+        // Tu
+        case "eeeeee":
+          return (
+            match.day(dateString, { width: "short", context: "formatting" }) ||
+            match.day(dateString, { width: "narrow", context: "formatting" })
+          );
+
+        // Tuesday
+        case "eeee":
+        default:
+          return (
+            match.day(dateString, { width: "wide", context: "formatting" }) ||
+            match.day(dateString, {
+              width: "abbreviated",
+              context: "formatting",
+            }) ||
+            match.day(dateString, { width: "short", context: "formatting" }) ||
+            match.day(dateString, { width: "narrow", context: "formatting" })
+          );
+      }
+    }
+
+    validate(_date, value) {
+      return value >= 0 && value <= 6;
+    }
+
+    set(date, _flags, value, options) {
+      date = setDay(date, value, options);
+      date.setHours(0, 0, 0, 0);
+      return date;
+    }
+
+    incompatibleTokens = [
+      "y",
+      "R",
+      "u",
+      "q",
+      "Q",
+      "M",
+      "L",
+      "I",
+      "d",
+      "D",
+      "E",
+      "i",
+      "c",
+      "t",
+      "T",
+    ];
+  }
+
+  // Stand-alone local day of week
+  class StandAloneLocalDayParser extends Parser {
+    priority = 90;
+
+    parse(dateString, token, match, options) {
+      const valueCallback = (value) => {
+        // We want here floor instead of trunc, so we get -7 for value 0 instead of 0
+        const wholeWeekDays = Math.floor((value - 1) / 7) * 7;
+        return ((value + options.weekStartsOn + 6) % 7) + wholeWeekDays;
+      };
+
+      switch (token) {
+        // 3
+        case "c":
+        case "cc": // 03
+          return mapValue(parseNDigits(token.length, dateString), valueCallback);
+        // 3rd
+        case "co":
+          return mapValue(
+            match.ordinalNumber(dateString, {
+              unit: "day",
+            }),
+            valueCallback,
+          );
+        // Tue
+        case "ccc":
+          return (
+            match.day(dateString, {
+              width: "abbreviated",
+              context: "standalone",
+            }) ||
+            match.day(dateString, { width: "short", context: "standalone" }) ||
+            match.day(dateString, { width: "narrow", context: "standalone" })
+          );
+
+        // T
+        case "ccccc":
+          return match.day(dateString, {
+            width: "narrow",
+            context: "standalone",
+          });
+        // Tu
+        case "cccccc":
+          return (
+            match.day(dateString, { width: "short", context: "standalone" }) ||
+            match.day(dateString, { width: "narrow", context: "standalone" })
+          );
+
+        // Tuesday
+        case "cccc":
+        default:
+          return (
+            match.day(dateString, { width: "wide", context: "standalone" }) ||
+            match.day(dateString, {
+              width: "abbreviated",
+              context: "standalone",
+            }) ||
+            match.day(dateString, { width: "short", context: "standalone" }) ||
+            match.day(dateString, { width: "narrow", context: "standalone" })
+          );
+      }
+    }
+
+    validate(_date, value) {
+      return value >= 0 && value <= 6;
+    }
+
+    set(date, _flags, value, options) {
+      date = setDay(date, value, options);
+      date.setHours(0, 0, 0, 0);
+      return date;
+    }
+
+    incompatibleTokens = [
+      "y",
+      "R",
+      "u",
+      "q",
+      "Q",
+      "M",
+      "L",
+      "I",
+      "d",
+      "D",
+      "E",
+      "i",
+      "e",
+      "t",
+      "T",
+    ];
+  }
+
+  /**
+   * @name setISODay
+   * @category Weekday Helpers
+   * @summary Set the day of the ISO week to the given date.
+   *
+   * @description
+   * Set the day of the ISO week to the given date.
+   * ISO week starts with Monday.
+   * 7 is the index of Sunday, 1 is the index of Monday etc.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The date to be changed
+   * @param day - The day of the ISO week of the new date
+   *
+   * @returns The new date with the day of the ISO week set
+   *
+   * @example
+   * // Set Sunday to 1 September 2014:
+   * const result = setISODay(new Date(2014, 8, 1), 7)
+   * //=> Sun Sep 07 2014 00:00:00
+   */
+  function setISODay(date, day) {
+    const _date = toDate(date);
+    const currentDay = getISODay(_date);
+    const diff = day - currentDay;
+    return addDays(_date, diff);
+  }
+
+  // ISO day of week
+  class ISODayParser extends Parser {
+    priority = 90;
+
+    parse(dateString, token, match) {
+      const valueCallback = (value) => {
+        if (value === 0) {
+          return 7;
+        }
+        return value;
+      };
+
+      switch (token) {
+        // 2
+        case "i":
+        case "ii": // 02
+          return parseNDigits(token.length, dateString);
+        // 2nd
+        case "io":
+          return match.ordinalNumber(dateString, { unit: "day" });
+        // Tue
+        case "iii":
+          return mapValue(
+            match.day(dateString, {
+              width: "abbreviated",
+              context: "formatting",
+            }) ||
+              match.day(dateString, {
+                width: "short",
+                context: "formatting",
+              }) ||
+              match.day(dateString, {
+                width: "narrow",
+                context: "formatting",
+              }),
+            valueCallback,
+          );
+        // T
+        case "iiiii":
+          return mapValue(
+            match.day(dateString, {
+              width: "narrow",
+              context: "formatting",
+            }),
+            valueCallback,
+          );
+        // Tu
+        case "iiiiii":
+          return mapValue(
+            match.day(dateString, {
+              width: "short",
+              context: "formatting",
+            }) ||
+              match.day(dateString, {
+                width: "narrow",
+                context: "formatting",
+              }),
+            valueCallback,
+          );
+        // Tuesday
+        case "iiii":
+        default:
+          return mapValue(
+            match.day(dateString, {
+              width: "wide",
+              context: "formatting",
+            }) ||
+              match.day(dateString, {
+                width: "abbreviated",
+                context: "formatting",
+              }) ||
+              match.day(dateString, {
+                width: "short",
+                context: "formatting",
+              }) ||
+              match.day(dateString, {
+                width: "narrow",
+                context: "formatting",
+              }),
+            valueCallback,
+          );
+      }
+    }
+
+    validate(_date, value) {
+      return value >= 1 && value <= 7;
+    }
+
+    set(date, _flags, value) {
+      date = setISODay(date, value);
+      date.setHours(0, 0, 0, 0);
+      return date;
+    }
+
+    incompatibleTokens = [
+      "y",
+      "Y",
+      "u",
+      "q",
+      "Q",
+      "M",
+      "L",
+      "w",
+      "d",
+      "D",
+      "E",
+      "e",
+      "c",
+      "t",
+      "T",
+    ];
+  }
+
+  class AMPMParser extends Parser {
+    priority = 80;
+
+    parse(dateString, token, match) {
+      switch (token) {
+        case "a":
+        case "aa":
+        case "aaa":
+          return (
+            match.dayPeriod(dateString, {
+              width: "abbreviated",
+              context: "formatting",
+            }) ||
+            match.dayPeriod(dateString, {
+              width: "narrow",
+              context: "formatting",
+            })
+          );
+
+        case "aaaaa":
+          return match.dayPeriod(dateString, {
+            width: "narrow",
+            context: "formatting",
+          });
+        case "aaaa":
+        default:
+          return (
+            match.dayPeriod(dateString, {
+              width: "wide",
+              context: "formatting",
+            }) ||
+            match.dayPeriod(dateString, {
+              width: "abbreviated",
+              context: "formatting",
+            }) ||
+            match.dayPeriod(dateString, {
+              width: "narrow",
+              context: "formatting",
+            })
+          );
+      }
+    }
+
+    set(date, _flags, value) {
+      date.setHours(dayPeriodEnumToHours(value), 0, 0, 0);
+      return date;
+    }
+
+    incompatibleTokens = ["b", "B", "H", "k", "t", "T"];
+  }
+
+  class AMPMMidnightParser extends Parser {
+    priority = 80;
+
+    parse(dateString, token, match) {
+      switch (token) {
+        case "b":
+        case "bb":
+        case "bbb":
+          return (
+            match.dayPeriod(dateString, {
+              width: "abbreviated",
+              context: "formatting",
+            }) ||
+            match.dayPeriod(dateString, {
+              width: "narrow",
+              context: "formatting",
+            })
+          );
+
+        case "bbbbb":
+          return match.dayPeriod(dateString, {
+            width: "narrow",
+            context: "formatting",
+          });
+        case "bbbb":
+        default:
+          return (
+            match.dayPeriod(dateString, {
+              width: "wide",
+              context: "formatting",
+            }) ||
+            match.dayPeriod(dateString, {
+              width: "abbreviated",
+              context: "formatting",
+            }) ||
+            match.dayPeriod(dateString, {
+              width: "narrow",
+              context: "formatting",
+            })
+          );
+      }
+    }
+
+    set(date, _flags, value) {
+      date.setHours(dayPeriodEnumToHours(value), 0, 0, 0);
+      return date;
+    }
+
+    incompatibleTokens = ["a", "B", "H", "k", "t", "T"];
+  }
+
+  // in the morning, in the afternoon, in the evening, at night
+  class DayPeriodParser extends Parser {
+    priority = 80;
+
+    parse(dateString, token, match) {
+      switch (token) {
+        case "B":
+        case "BB":
+        case "BBB":
+          return (
+            match.dayPeriod(dateString, {
+              width: "abbreviated",
+              context: "formatting",
+            }) ||
+            match.dayPeriod(dateString, {
+              width: "narrow",
+              context: "formatting",
+            })
+          );
+
+        case "BBBBB":
+          return match.dayPeriod(dateString, {
+            width: "narrow",
+            context: "formatting",
+          });
+        case "BBBB":
+        default:
+          return (
+            match.dayPeriod(dateString, {
+              width: "wide",
+              context: "formatting",
+            }) ||
+            match.dayPeriod(dateString, {
+              width: "abbreviated",
+              context: "formatting",
+            }) ||
+            match.dayPeriod(dateString, {
+              width: "narrow",
+              context: "formatting",
+            })
+          );
+      }
+    }
+
+    set(date, _flags, value) {
+      date.setHours(dayPeriodEnumToHours(value), 0, 0, 0);
+      return date;
+    }
+
+    incompatibleTokens = ["a", "b", "t", "T"];
+  }
+
+  class Hour1to12Parser extends Parser {
+    priority = 70;
+
+    parse(dateString, token, match) {
+      switch (token) {
+        case "h":
+          return parseNumericPattern(numericPatterns.hour12h, dateString);
+        case "ho":
+          return match.ordinalNumber(dateString, { unit: "hour" });
+        default:
+          return parseNDigits(token.length, dateString);
+      }
+    }
+
+    validate(_date, value) {
+      return value >= 1 && value <= 12;
+    }
+
+    set(date, _flags, value) {
+      const isPM = date.getHours() >= 12;
+      if (isPM && value < 12) {
+        date.setHours(value + 12, 0, 0, 0);
+      } else if (!isPM && value === 12) {
+        date.setHours(0, 0, 0, 0);
+      } else {
+        date.setHours(value, 0, 0, 0);
+      }
+      return date;
+    }
+
+    incompatibleTokens = ["H", "K", "k", "t", "T"];
+  }
+
+  class Hour0to23Parser extends Parser {
+    priority = 70;
+
+    parse(dateString, token, match) {
+      switch (token) {
+        case "H":
+          return parseNumericPattern(numericPatterns.hour23h, dateString);
+        case "Ho":
+          return match.ordinalNumber(dateString, { unit: "hour" });
+        default:
+          return parseNDigits(token.length, dateString);
+      }
+    }
+
+    validate(_date, value) {
+      return value >= 0 && value <= 23;
+    }
+
+    set(date, _flags, value) {
+      date.setHours(value, 0, 0, 0);
+      return date;
+    }
+
+    incompatibleTokens = ["a", "b", "h", "K", "k", "t", "T"];
+  }
+
+  class Hour0To11Parser extends Parser {
+    priority = 70;
+
+    parse(dateString, token, match) {
+      switch (token) {
+        case "K":
+          return parseNumericPattern(numericPatterns.hour11h, dateString);
+        case "Ko":
+          return match.ordinalNumber(dateString, { unit: "hour" });
+        default:
+          return parseNDigits(token.length, dateString);
+      }
+    }
+
+    validate(_date, value) {
+      return value >= 0 && value <= 11;
+    }
+
+    set(date, _flags, value) {
+      const isPM = date.getHours() >= 12;
+      if (isPM && value < 12) {
+        date.setHours(value + 12, 0, 0, 0);
+      } else {
+        date.setHours(value, 0, 0, 0);
+      }
+      return date;
+    }
+
+    incompatibleTokens = ["h", "H", "k", "t", "T"];
+  }
+
+  class Hour1To24Parser extends Parser {
+    priority = 70;
+
+    parse(dateString, token, match) {
+      switch (token) {
+        case "k":
+          return parseNumericPattern(numericPatterns.hour24h, dateString);
+        case "ko":
+          return match.ordinalNumber(dateString, { unit: "hour" });
+        default:
+          return parseNDigits(token.length, dateString);
+      }
+    }
+
+    validate(_date, value) {
+      return value >= 1 && value <= 24;
+    }
+
+    set(date, _flags, value) {
+      const hours = value <= 24 ? value % 24 : value;
+      date.setHours(hours, 0, 0, 0);
+      return date;
+    }
+
+    incompatibleTokens = ["a", "b", "h", "H", "K", "t", "T"];
+  }
+
+  class MinuteParser extends Parser {
+    priority = 60;
+
+    parse(dateString, token, match) {
+      switch (token) {
+        case "m":
+          return parseNumericPattern(numericPatterns.minute, dateString);
+        case "mo":
+          return match.ordinalNumber(dateString, { unit: "minute" });
+        default:
+          return parseNDigits(token.length, dateString);
+      }
+    }
+
+    validate(_date, value) {
+      return value >= 0 && value <= 59;
+    }
+
+    set(date, _flags, value) {
+      date.setMinutes(value, 0, 0);
+      return date;
+    }
+
+    incompatibleTokens = ["t", "T"];
+  }
+
+  class SecondParser extends Parser {
+    priority = 50;
+
+    parse(dateString, token, match) {
+      switch (token) {
+        case "s":
+          return parseNumericPattern(numericPatterns.second, dateString);
+        case "so":
+          return match.ordinalNumber(dateString, { unit: "second" });
+        default:
+          return parseNDigits(token.length, dateString);
+      }
+    }
+
+    validate(_date, value) {
+      return value >= 0 && value <= 59;
+    }
+
+    set(date, _flags, value) {
+      date.setSeconds(value, 0);
+      return date;
+    }
+
+    incompatibleTokens = ["t", "T"];
+  }
+
+  class FractionOfSecondParser extends Parser {
+    priority = 30;
+
+    parse(dateString, token) {
+      const valueCallback = (value) =>
+        Math.trunc(value * Math.pow(10, -token.length + 3));
+      return mapValue(parseNDigits(token.length, dateString), valueCallback);
+    }
+
+    set(date, _flags, value) {
+      date.setMilliseconds(value);
+      return date;
+    }
+
+    incompatibleTokens = ["t", "T"];
+  }
+
+  // Timezone (ISO-8601. +00:00 is `'Z'`)
+  class ISOTimezoneWithZParser extends Parser {
+    priority = 10;
+
+    parse(dateString, token) {
+      switch (token) {
+        case "X":
+          return parseTimezonePattern(
+            timezonePatterns.basicOptionalMinutes,
+            dateString,
+          );
+        case "XX":
+          return parseTimezonePattern(timezonePatterns.basic, dateString);
+        case "XXXX":
+          return parseTimezonePattern(
+            timezonePatterns.basicOptionalSeconds,
+            dateString,
+          );
+        case "XXXXX":
+          return parseTimezonePattern(
+            timezonePatterns.extendedOptionalSeconds,
+            dateString,
+          );
+        case "XXX":
+        default:
+          return parseTimezonePattern(timezonePatterns.extended, dateString);
+      }
+    }
+
+    set(date, flags, value) {
+      if (flags.timestampIsSet) return date;
+      return constructFrom(
+        date,
+        date.getTime() - getTimezoneOffsetInMilliseconds(date) - value,
+      );
+    }
+
+    incompatibleTokens = ["t", "T", "x"];
+  }
+
+  // Timezone (ISO-8601)
+  class ISOTimezoneParser extends Parser {
+    priority = 10;
+
+    parse(dateString, token) {
+      switch (token) {
+        case "x":
+          return parseTimezonePattern(
+            timezonePatterns.basicOptionalMinutes,
+            dateString,
+          );
+        case "xx":
+          return parseTimezonePattern(timezonePatterns.basic, dateString);
+        case "xxxx":
+          return parseTimezonePattern(
+            timezonePatterns.basicOptionalSeconds,
+            dateString,
+          );
+        case "xxxxx":
+          return parseTimezonePattern(
+            timezonePatterns.extendedOptionalSeconds,
+            dateString,
+          );
+        case "xxx":
+        default:
+          return parseTimezonePattern(timezonePatterns.extended, dateString);
+      }
+    }
+
+    set(date, flags, value) {
+      if (flags.timestampIsSet) return date;
+      return constructFrom(
+        date,
+        date.getTime() - getTimezoneOffsetInMilliseconds(date) - value,
+      );
+    }
+
+    incompatibleTokens = ["t", "T", "X"];
+  }
+
+  class TimestampSecondsParser extends Parser {
+    priority = 40;
+
+    parse(dateString) {
+      return parseAnyDigitsSigned(dateString);
+    }
+
+    set(date, _flags, value) {
+      return [constructFrom(date, value * 1000), { timestampIsSet: true }];
+    }
+
+    incompatibleTokens = "*";
+  }
+
+  class TimestampMillisecondsParser extends Parser {
+    priority = 20;
+
+    parse(dateString) {
+      return parseAnyDigitsSigned(dateString);
+    }
+
+    set(date, _flags, value) {
+      return [constructFrom(date, value), { timestampIsSet: true }];
+    }
+
+    incompatibleTokens = "*";
+  }
+
+  /*
+   * |     | Unit                           |     | Unit                           |
+   * |-----|--------------------------------|-----|--------------------------------|
+   * |  a  | AM, PM                         |  A* | Milliseconds in day            |
+   * |  b  | AM, PM, noon, midnight         |  B  | Flexible day period            |
+   * |  c  | Stand-alone local day of week  |  C* | Localized hour w/ day period   |
+   * |  d  | Day of month                   |  D  | Day of year                    |
+   * |  e  | Local day of week              |  E  | Day of week                    |
+   * |  f  |                                |  F* | Day of week in month           |
+   * |  g* | Modified Julian day            |  G  | Era                            |
+   * |  h  | Hour [1-12]                    |  H  | Hour [0-23]                    |
+   * |  i! | ISO day of week                |  I! | ISO week of year               |
+   * |  j* | Localized hour w/ day period   |  J* | Localized hour w/o day period  |
+   * |  k  | Hour [1-24]                    |  K  | Hour [0-11]                    |
+   * |  l* | (deprecated)                   |  L  | Stand-alone month              |
+   * |  m  | Minute                         |  M  | Month                          |
+   * |  n  |                                |  N  |                                |
+   * |  o! | Ordinal number modifier        |  O* | Timezone (GMT)                 |
+   * |  p  |                                |  P  |                                |
+   * |  q  | Stand-alone quarter            |  Q  | Quarter                        |
+   * |  r* | Related Gregorian year         |  R! | ISO week-numbering year        |
+   * |  s  | Second                         |  S  | Fraction of second             |
+   * |  t! | Seconds timestamp              |  T! | Milliseconds timestamp         |
+   * |  u  | Extended year                  |  U* | Cyclic year                    |
+   * |  v* | Timezone (generic non-locat.)  |  V* | Timezone (location)            |
+   * |  w  | Local week of year             |  W* | Week of month                  |
+   * |  x  | Timezone (ISO-8601 w/o Z)      |  X  | Timezone (ISO-8601)            |
+   * |  y  | Year (abs)                     |  Y  | Local week-numbering year      |
+   * |  z* | Timezone (specific non-locat.) |  Z* | Timezone (aliases)             |
+   *
+   * Letters marked by * are not implemented but reserved by Unicode standard.
+   *
+   * Letters marked by ! are non-standard, but implemented by date-fns:
+   * - `o` modifies the previous token to turn it into an ordinal (see `parse` docs)
+   * - `i` is ISO day of week. For `i` and `ii` is returns numeric ISO week days,
+   *   i.e. 7 for Sunday, 1 for Monday, etc.
+   * - `I` is ISO week of year, as opposed to `w` which is local week of year.
+   * - `R` is ISO week-numbering year, as opposed to `Y` which is local week-numbering year.
+   *   `R` is supposed to be used in conjunction with `I` and `i`
+   *   for universal ISO week-numbering date, whereas
+   *   `Y` is supposed to be used in conjunction with `w` and `e`
+   *   for week-numbering date specific to the locale.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- It's ok, we want any here
+  const parsers = {
+    G: new EraParser(),
+    y: new YearParser(),
+    Y: new LocalWeekYearParser(),
+    R: new ISOWeekYearParser(),
+    u: new ExtendedYearParser(),
+    Q: new QuarterParser(),
+    q: new StandAloneQuarterParser(),
+    M: new MonthParser(),
+    L: new StandAloneMonthParser(),
+    w: new LocalWeekParser(),
+    I: new ISOWeekParser(),
+    d: new DateParser(),
+    D: new DayOfYearParser(),
+    E: new DayParser(),
+    e: new LocalDayParser(),
+    c: new StandAloneLocalDayParser(),
+    i: new ISODayParser(),
+    a: new AMPMParser(),
+    b: new AMPMMidnightParser(),
+    B: new DayPeriodParser(),
+    h: new Hour1to12Parser(),
+    H: new Hour0to23Parser(),
+    K: new Hour0To11Parser(),
+    k: new Hour1To24Parser(),
+    m: new MinuteParser(),
+    s: new SecondParser(),
+    S: new FractionOfSecondParser(),
+    X: new ISOTimezoneWithZParser(),
+    x: new ISOTimezoneParser(),
+    t: new TimestampSecondsParser(),
+    T: new TimestampMillisecondsParser(),
+  };
+
+  /**
+   * The {@link parse} function options.
+   */
+
+  // This RegExp consists of three parts separated by `|`:
+  // - [yYQqMLwIdDecihHKkms]o matches any available ordinal number token
+  //   (one of the certain letters followed by `o`)
+  // - (\w)\1* matches any sequences of the same letter
+  // - '' matches two quote characters in a row
+  // - '(''|[^'])+('|$) matches anything surrounded by two quote characters ('),
+  //   except a single quote symbol, which ends the sequence.
+  //   Two quote characters do not end the sequence.
+  //   If there is no matching single quote
+  //   then the sequence will continue until the end of the string.
+  // - . matches any single character unmatched by previous parts of the RegExps
+  const formattingTokensRegExp =
+    /[yYQqMLwIdDecihHKkms]o|(\w)\1*|''|'(''|[^'])+('|$)|./g;
+
+  // This RegExp catches symbols escaped by quotes, and also
+  // sequences of symbols P, p, and the combinations like `PPPPPPPppppp`
+  const longFormattingTokensRegExp = /P+p+|P+|p+|''|'(''|[^'])+('|$)|./g;
+
+  const escapedStringRegExp = /^'([^]*?)'?$/;
+  const doubleQuoteRegExp = /''/g;
+
+  const notWhitespaceRegExp = /\S/;
+  const unescapedLatinCharacterRegExp = /[a-zA-Z]/;
+
+  /**
+   * @name parse
+   * @category Common Helpers
+   * @summary Parse the date.
+   *
+   * @description
+   * Return the date parsed from string using the given format string.
+   *
+   * > ⚠️ Please note that the `format` tokens differ from Moment.js and other libraries.
+   * > See: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
+   *
+   * The characters in the format string wrapped between two single quotes characters (') are escaped.
+   * Two single quotes in a row, whether inside or outside a quoted sequence, represent a 'real' single quote.
+   *
+   * Format of the format string is based on Unicode Technical Standard #35:
+   * https://www.unicode.org/reports/tr35/tr35-dates.html#Date_Field_Symbol_Table
+   * with a few additions (see note 5 below the table).
+   *
+   * Not all tokens are compatible. Combinations that don't make sense or could lead to bugs are prohibited
+   * and will throw `RangeError`. For example usage of 24-hour format token with AM/PM token will throw an exception:
+   *
+   * ```javascript
+   * parse('23 AM', 'HH a', new Date())
+   * //=> RangeError: The format string mustn't contain `HH` and `a` at the same time
+   * ```
+   *
+   * See the compatibility table: https://docs.google.com/spreadsheets/d/e/2PACX-1vQOPU3xUhplll6dyoMmVUXHKl_8CRDs6_ueLmex3SoqwhuolkuN3O05l4rqx5h1dKX8eb46Ul-CCSrq/pubhtml?gid=0&single=true
+   *
+   * Accepted format string patterns:
+   * | Unit                            |Prior| Pattern | Result examples                   | Notes |
+   * |---------------------------------|-----|---------|-----------------------------------|-------|
+   * | Era                             | 140 | G..GGG  | AD, BC                            |       |
+   * |                                 |     | GGGG    | Anno Domini, Before Christ        | 2     |
+   * |                                 |     | GGGGG   | A, B                              |       |
+   * | Calendar year                   | 130 | y       | 44, 1, 1900, 2017, 9999           | 4     |
+   * |                                 |     | yo      | 44th, 1st, 1900th, 9999999th      | 4,5   |
+   * |                                 |     | yy      | 44, 01, 00, 17                    | 4     |
+   * |                                 |     | yyy     | 044, 001, 123, 999                | 4     |
+   * |                                 |     | yyyy    | 0044, 0001, 1900, 2017            | 4     |
+   * |                                 |     | yyyyy   | ...                               | 2,4   |
+   * | Local week-numbering year       | 130 | Y       | 44, 1, 1900, 2017, 9000           | 4     |
+   * |                                 |     | Yo      | 44th, 1st, 1900th, 9999999th      | 4,5   |
+   * |                                 |     | YY      | 44, 01, 00, 17                    | 4,6   |
+   * |                                 |     | YYY     | 044, 001, 123, 999                | 4     |
+   * |                                 |     | YYYY    | 0044, 0001, 1900, 2017            | 4,6   |
+   * |                                 |     | YYYYY   | ...                               | 2,4   |
+   * | ISO week-numbering year         | 130 | R       | -43, 1, 1900, 2017, 9999, -9999   | 4,5   |
+   * |                                 |     | RR      | -43, 01, 00, 17                   | 4,5   |
+   * |                                 |     | RRR     | -043, 001, 123, 999, -999         | 4,5   |
+   * |                                 |     | RRRR    | -0043, 0001, 2017, 9999, -9999    | 4,5   |
+   * |                                 |     | RRRRR   | ...                               | 2,4,5 |
+   * | Extended year                   | 130 | u       | -43, 1, 1900, 2017, 9999, -999    | 4     |
+   * |                                 |     | uu      | -43, 01, 99, -99                  | 4     |
+   * |                                 |     | uuu     | -043, 001, 123, 999, -999         | 4     |
+   * |                                 |     | uuuu    | -0043, 0001, 2017, 9999, -9999    | 4     |
+   * |                                 |     | uuuuu   | ...                               | 2,4   |
+   * | Quarter (formatting)            | 120 | Q       | 1, 2, 3, 4                        |       |
+   * |                                 |     | Qo      | 1st, 2nd, 3rd, 4th                | 5     |
+   * |                                 |     | QQ      | 01, 02, 03, 04                    |       |
+   * |                                 |     | QQQ     | Q1, Q2, Q3, Q4                    |       |
+   * |                                 |     | QQQQ    | 1st quarter, 2nd quarter, ...     | 2     |
+   * |                                 |     | QQQQQ   | 1, 2, 3, 4                        | 4     |
+   * | Quarter (stand-alone)           | 120 | q       | 1, 2, 3, 4                        |       |
+   * |                                 |     | qo      | 1st, 2nd, 3rd, 4th                | 5     |
+   * |                                 |     | qq      | 01, 02, 03, 04                    |       |
+   * |                                 |     | qqq     | Q1, Q2, Q3, Q4                    |       |
+   * |                                 |     | qqqq    | 1st quarter, 2nd quarter, ...     | 2     |
+   * |                                 |     | qqqqq   | 1, 2, 3, 4                        | 3     |
+   * | Month (formatting)              | 110 | M       | 1, 2, ..., 12                     |       |
+   * |                                 |     | Mo      | 1st, 2nd, ..., 12th               | 5     |
+   * |                                 |     | MM      | 01, 02, ..., 12                   |       |
+   * |                                 |     | MMM     | Jan, Feb, ..., Dec                |       |
+   * |                                 |     | MMMM    | January, February, ..., December  | 2     |
+   * |                                 |     | MMMMM   | J, F, ..., D                      |       |
+   * | Month (stand-alone)             | 110 | L       | 1, 2, ..., 12                     |       |
+   * |                                 |     | Lo      | 1st, 2nd, ..., 12th               | 5     |
+   * |                                 |     | LL      | 01, 02, ..., 12                   |       |
+   * |                                 |     | LLL     | Jan, Feb, ..., Dec                |       |
+   * |                                 |     | LLLL    | January, February, ..., December  | 2     |
+   * |                                 |     | LLLLL   | J, F, ..., D                      |       |
+   * | Local week of year              | 100 | w       | 1, 2, ..., 53                     |       |
+   * |                                 |     | wo      | 1st, 2nd, ..., 53th               | 5     |
+   * |                                 |     | ww      | 01, 02, ..., 53                   |       |
+   * | ISO week of year                | 100 | I       | 1, 2, ..., 53                     | 5     |
+   * |                                 |     | Io      | 1st, 2nd, ..., 53th               | 5     |
+   * |                                 |     | II      | 01, 02, ..., 53                   | 5     |
+   * | Day of month                    |  90 | d       | 1, 2, ..., 31                     |       |
+   * |                                 |     | do      | 1st, 2nd, ..., 31st               | 5     |
+   * |                                 |     | dd      | 01, 02, ..., 31                   |       |
+   * | Day of year                     |  90 | D       | 1, 2, ..., 365, 366               | 7     |
+   * |                                 |     | Do      | 1st, 2nd, ..., 365th, 366th       | 5     |
+   * |                                 |     | DD      | 01, 02, ..., 365, 366             | 7     |
+   * |                                 |     | DDD     | 001, 002, ..., 365, 366           |       |
+   * |                                 |     | DDDD    | ...                               | 2     |
+   * | Day of week (formatting)        |  90 | E..EEE  | Mon, Tue, Wed, ..., Sun           |       |
+   * |                                 |     | EEEE    | Monday, Tuesday, ..., Sunday      | 2     |
+   * |                                 |     | EEEEE   | M, T, W, T, F, S, S               |       |
+   * |                                 |     | EEEEEE  | Mo, Tu, We, Th, Fr, Sa, Su        |       |
+   * | ISO day of week (formatting)    |  90 | i       | 1, 2, 3, ..., 7                   | 5     |
+   * |                                 |     | io      | 1st, 2nd, ..., 7th                | 5     |
+   * |                                 |     | ii      | 01, 02, ..., 07                   | 5     |
+   * |                                 |     | iii     | Mon, Tue, Wed, ..., Sun           | 5     |
+   * |                                 |     | iiii    | Monday, Tuesday, ..., Sunday      | 2,5   |
+   * |                                 |     | iiiii   | M, T, W, T, F, S, S               | 5     |
+   * |                                 |     | iiiiii  | Mo, Tu, We, Th, Fr, Sa, Su        | 5     |
+   * | Local day of week (formatting)  |  90 | e       | 2, 3, 4, ..., 1                   |       |
+   * |                                 |     | eo      | 2nd, 3rd, ..., 1st                | 5     |
+   * |                                 |     | ee      | 02, 03, ..., 01                   |       |
+   * |                                 |     | eee     | Mon, Tue, Wed, ..., Sun           |       |
+   * |                                 |     | eeee    | Monday, Tuesday, ..., Sunday      | 2     |
+   * |                                 |     | eeeee   | M, T, W, T, F, S, S               |       |
+   * |                                 |     | eeeeee  | Mo, Tu, We, Th, Fr, Sa, Su        |       |
+   * | Local day of week (stand-alone) |  90 | c       | 2, 3, 4, ..., 1                   |       |
+   * |                                 |     | co      | 2nd, 3rd, ..., 1st                | 5     |
+   * |                                 |     | cc      | 02, 03, ..., 01                   |       |
+   * |                                 |     | ccc     | Mon, Tue, Wed, ..., Sun           |       |
+   * |                                 |     | cccc    | Monday, Tuesday, ..., Sunday      | 2     |
+   * |                                 |     | ccccc   | M, T, W, T, F, S, S               |       |
+   * |                                 |     | cccccc  | Mo, Tu, We, Th, Fr, Sa, Su        |       |
+   * | AM, PM                          |  80 | a..aaa  | AM, PM                            |       |
+   * |                                 |     | aaaa    | a.m., p.m.                        | 2     |
+   * |                                 |     | aaaaa   | a, p                              |       |
+   * | AM, PM, noon, midnight          |  80 | b..bbb  | AM, PM, noon, midnight            |       |
+   * |                                 |     | bbbb    | a.m., p.m., noon, midnight        | 2     |
+   * |                                 |     | bbbbb   | a, p, n, mi                       |       |
+   * | Flexible day period             |  80 | B..BBB  | at night, in the morning, ...     |       |
+   * |                                 |     | BBBB    | at night, in the morning, ...     | 2     |
+   * |                                 |     | BBBBB   | at night, in the morning, ...     |       |
+   * | Hour [1-12]                     |  70 | h       | 1, 2, ..., 11, 12                 |       |
+   * |                                 |     | ho      | 1st, 2nd, ..., 11th, 12th         | 5     |
+   * |                                 |     | hh      | 01, 02, ..., 11, 12               |       |
+   * | Hour [0-23]                     |  70 | H       | 0, 1, 2, ..., 23                  |       |
+   * |                                 |     | Ho      | 0th, 1st, 2nd, ..., 23rd          | 5     |
+   * |                                 |     | HH      | 00, 01, 02, ..., 23               |       |
+   * | Hour [0-11]                     |  70 | K       | 1, 2, ..., 11, 0                  |       |
+   * |                                 |     | Ko      | 1st, 2nd, ..., 11th, 0th          | 5     |
+   * |                                 |     | KK      | 01, 02, ..., 11, 00               |       |
+   * | Hour [1-24]                     |  70 | k       | 24, 1, 2, ..., 23                 |       |
+   * |                                 |     | ko      | 24th, 1st, 2nd, ..., 23rd         | 5     |
+   * |                                 |     | kk      | 24, 01, 02, ..., 23               |       |
+   * | Minute                          |  60 | m       | 0, 1, ..., 59                     |       |
+   * |                                 |     | mo      | 0th, 1st, ..., 59th               | 5     |
+   * |                                 |     | mm      | 00, 01, ..., 59                   |       |
+   * | Second                          |  50 | s       | 0, 1, ..., 59                     |       |
+   * |                                 |     | so      | 0th, 1st, ..., 59th               | 5     |
+   * |                                 |     | ss      | 00, 01, ..., 59                   |       |
+   * | Seconds timestamp               |  40 | t       | 512969520                         |       |
+   * |                                 |     | tt      | ...                               | 2     |
+   * | Fraction of second              |  30 | S       | 0, 1, ..., 9                      |       |
+   * |                                 |     | SS      | 00, 01, ..., 99                   |       |
+   * |                                 |     | SSS     | 000, 001, ..., 999                |       |
+   * |                                 |     | SSSS    | ...                               | 2     |
+   * | Milliseconds timestamp          |  20 | T       | 512969520900                      |       |
+   * |                                 |     | TT      | ...                               | 2     |
+   * | Timezone (ISO-8601 w/ Z)        |  10 | X       | -08, +0530, Z                     |       |
+   * |                                 |     | XX      | -0800, +0530, Z                   |       |
+   * |                                 |     | XXX     | -08:00, +05:30, Z                 |       |
+   * |                                 |     | XXXX    | -0800, +0530, Z, +123456          | 2     |
+   * |                                 |     | XXXXX   | -08:00, +05:30, Z, +12:34:56      |       |
+   * | Timezone (ISO-8601 w/o Z)       |  10 | x       | -08, +0530, +00                   |       |
+   * |                                 |     | xx      | -0800, +0530, +0000               |       |
+   * |                                 |     | xxx     | -08:00, +05:30, +00:00            | 2     |
+   * |                                 |     | xxxx    | -0800, +0530, +0000, +123456      |       |
+   * |                                 |     | xxxxx   | -08:00, +05:30, +00:00, +12:34:56 |       |
+   * | Long localized date             |  NA | P       | 05/29/1453                        | 5,8   |
+   * |                                 |     | PP      | May 29, 1453                      |       |
+   * |                                 |     | PPP     | May 29th, 1453                    |       |
+   * |                                 |     | PPPP    | Sunday, May 29th, 1453            | 2,5,8 |
+   * | Long localized time             |  NA | p       | 12:00 AM                          | 5,8   |
+   * |                                 |     | pp      | 12:00:00 AM                       |       |
+   * | Combination of date and time    |  NA | Pp      | 05/29/1453, 12:00 AM              |       |
+   * |                                 |     | PPpp    | May 29, 1453, 12:00:00 AM         |       |
+   * |                                 |     | PPPpp   | May 29th, 1453 at ...             |       |
+   * |                                 |     | PPPPpp  | Sunday, May 29th, 1453 at ...     | 2,5,8 |
+   * Notes:
+   * 1. "Formatting" units (e.g. formatting quarter) in the default en-US locale
+   *    are the same as "stand-alone" units, but are different in some languages.
+   *    "Formatting" units are declined according to the rules of the language
+   *    in the context of a date. "Stand-alone" units are always nominative singular.
+   *    In `format` function, they will produce different result:
+   *
+   *    `format(new Date(2017, 10, 6), 'do LLLL', {locale: cs}) //=> '6. listopad'`
+   *
+   *    `format(new Date(2017, 10, 6), 'do MMMM', {locale: cs}) //=> '6. listopadu'`
+   *
+   *    `parse` will try to match both formatting and stand-alone units interchangably.
+   *
+   * 2. Any sequence of the identical letters is a pattern, unless it is escaped by
+   *    the single quote characters (see below).
+   *    If the sequence is longer than listed in table:
+   *    - for numerical units (`yyyyyyyy`) `parse` will try to match a number
+   *      as wide as the sequence
+   *    - for text units (`MMMMMMMM`) `parse` will try to match the widest variation of the unit.
+   *      These variations are marked with "2" in the last column of the table.
+   *
+   * 3. `QQQQQ` and `qqqqq` could be not strictly numerical in some locales.
+   *    These tokens represent the shortest form of the quarter.
+   *
+   * 4. The main difference between `y` and `u` patterns are B.C. years:
+   *
+   *    | Year | `y` | `u` |
+   *    |------|-----|-----|
+   *    | AC 1 |   1 |   1 |
+   *    | BC 1 |   1 |   0 |
+   *    | BC 2 |   2 |  -1 |
+   *
+   *    Also `yy` will try to guess the century of two digit year by proximity with `referenceDate`:
+   *
+   *    `parse('50', 'yy', new Date(2018, 0, 1)) //=> Sat Jan 01 2050 00:00:00`
+   *
+   *    `parse('75', 'yy', new Date(2018, 0, 1)) //=> Wed Jan 01 1975 00:00:00`
+   *
+   *    while `uu` will just assign the year as is:
+   *
+   *    `parse('50', 'uu', new Date(2018, 0, 1)) //=> Sat Jan 01 0050 00:00:00`
+   *
+   *    `parse('75', 'uu', new Date(2018, 0, 1)) //=> Tue Jan 01 0075 00:00:00`
+   *
+   *    The same difference is true for local and ISO week-numbering years (`Y` and `R`),
+   *    except local week-numbering years are dependent on `options.weekStartsOn`
+   *    and `options.firstWeekContainsDate` (compare [setISOWeekYear](https://date-fns.org/docs/setISOWeekYear)
+   *    and [setWeekYear](https://date-fns.org/docs/setWeekYear)).
+   *
+   * 5. These patterns are not in the Unicode Technical Standard #35:
+   *    - `i`: ISO day of week
+   *    - `I`: ISO week of year
+   *    - `R`: ISO week-numbering year
+   *    - `o`: ordinal number modifier
+   *    - `P`: long localized date
+   *    - `p`: long localized time
+   *
+   * 6. `YY` and `YYYY` tokens represent week-numbering years but they are often confused with years.
+   *    You should enable `options.useAdditionalWeekYearTokens` to use them. See: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
+   *
+   * 7. `D` and `DD` tokens represent days of the year but they are ofthen confused with days of the month.
+   *    You should enable `options.useAdditionalDayOfYearTokens` to use them. See: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
+   *
+   * 8. `P+` tokens do not have a defined priority since they are merely aliases to other tokens based
+   *    on the given locale.
+   *
+   *    using `en-US` locale: `P` => `MM/dd/yyyy`
+   *    using `en-US` locale: `p` => `hh:mm a`
+   *    using `pt-BR` locale: `P` => `dd/MM/yyyy`
+   *    using `pt-BR` locale: `p` => `HH:mm`
+   *
+   * Values will be assigned to the date in the descending order of its unit's priority.
+   * Units of an equal priority overwrite each other in the order of appearance.
+   *
+   * If no values of higher priority are parsed (e.g. when parsing string 'January 1st' without a year),
+   * the values will be taken from 3rd argument `referenceDate` which works as a context of parsing.
+   *
+   * `referenceDate` must be passed for correct work of the function.
+   * If you're not sure which `referenceDate` to supply, create a new instance of Date:
+   * `parse('02/11/2014', 'MM/dd/yyyy', new Date())`
+   * In this case parsing will be done in the context of the current date.
+   * If `referenceDate` is `Invalid Date` or a value not convertible to valid `Date`,
+   * then `Invalid Date` will be returned.
+   *
+   * The result may vary by locale.
+   *
+   * If `formatString` matches with `dateString` but does not provides tokens, `referenceDate` will be returned.
+   *
+   * If parsing failed, `Invalid Date` will be returned.
+   * Invalid Date is a Date, whose time value is NaN.
+   * Time value of Date: http://es5.github.io/#x15.9.1.1
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param dateStr - The string to parse
+   * @param formatStr - The string of tokens
+   * @param referenceDate - defines values missing from the parsed dateString
+   * @param options - An object with options.
+   *   see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
+   *   see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
+   *
+   * @returns The parsed date
+   *
+   * @throws `options.locale` must contain `match` property
+   * @throws use `yyyy` instead of `YYYY` for formatting years using [format provided] to the input [input provided]; see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
+   * @throws use `yy` instead of `YY` for formatting years using [format provided] to the input [input provided]; see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
+   * @throws use `d` instead of `D` for formatting days of the month using [format provided] to the input [input provided]; see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
+   * @throws use `dd` instead of `DD` for formatting days of the month using [format provided] to the input [input provided]; see: https://github.com/date-fns/date-fns/blob/master/docs/unicodeTokens.md
+   * @throws format string contains an unescaped latin alphabet character
+   *
+   * @example
+   * // Parse 11 February 2014 from middle-endian format:
+   * var result = parse('02/11/2014', 'MM/dd/yyyy', new Date())
+   * //=> Tue Feb 11 2014 00:00:00
+   *
+   * @example
+   * // Parse 28th of February in Esperanto locale in the context of 2010 year:
+   * import eo from 'date-fns/locale/eo'
+   * var result = parse('28-a de februaro', "do 'de' MMMM", new Date(2010, 0, 1), {
+   *   locale: eo
+   * })
+   * //=> Sun Feb 28 2010 00:00:00
+   */
+  function parse(dateStr, formatStr, referenceDate, options) {
+    const defaultOptions = getDefaultOptions();
+    const locale = options?.locale ?? defaultOptions.locale ?? enUS;
+
+    const firstWeekContainsDate =
+      options?.firstWeekContainsDate ??
+      options?.locale?.options?.firstWeekContainsDate ??
+      defaultOptions.firstWeekContainsDate ??
+      defaultOptions.locale?.options?.firstWeekContainsDate ??
+      1;
+
+    const weekStartsOn =
+      options?.weekStartsOn ??
+      options?.locale?.options?.weekStartsOn ??
+      defaultOptions.weekStartsOn ??
+      defaultOptions.locale?.options?.weekStartsOn ??
+      0;
+
+    if (formatStr === "") {
+      if (dateStr === "") {
+        return toDate(referenceDate);
+      } else {
+        return constructFrom(referenceDate, NaN);
+      }
+    }
+
+    const subFnOptions = {
+      firstWeekContainsDate,
+      weekStartsOn,
+      locale,
+    };
+
+    // If timezone isn't specified, it will be set to the system timezone
+    const setters = [new DateToSystemTimezoneSetter()];
+
+    const tokens = formatStr
+      .match(longFormattingTokensRegExp)
+      .map((substring) => {
+        const firstCharacter = substring[0];
+        if (firstCharacter in longFormatters) {
+          const longFormatter = longFormatters[firstCharacter];
+          return longFormatter(substring, locale.formatLong);
+        }
+        return substring;
+      })
+      .join("")
+      .match(formattingTokensRegExp);
+
+    const usedTokens = [];
+
+    for (let token of tokens) {
+      if (
+        !options?.useAdditionalWeekYearTokens &&
+        isProtectedWeekYearToken(token)
+      ) {
+        warnOrThrowProtectedError(token, formatStr, dateStr);
+      }
+      if (
+        !options?.useAdditionalDayOfYearTokens &&
+        isProtectedDayOfYearToken(token)
+      ) {
+        warnOrThrowProtectedError(token, formatStr, dateStr);
+      }
+
+      const firstCharacter = token[0];
+      const parser = parsers[firstCharacter];
+      if (parser) {
+        const { incompatibleTokens } = parser;
+        if (Array.isArray(incompatibleTokens)) {
+          const incompatibleToken = usedTokens.find(
+            (usedToken) =>
+              incompatibleTokens.includes(usedToken.token) ||
+              usedToken.token === firstCharacter,
+          );
+          if (incompatibleToken) {
+            throw new RangeError(
+              `The format string mustn't contain \`${incompatibleToken.fullToken}\` and \`${token}\` at the same time`,
+            );
+          }
+        } else if (parser.incompatibleTokens === "*" && usedTokens.length > 0) {
+          throw new RangeError(
+            `The format string mustn't contain \`${token}\` and any other token at the same time`,
+          );
+        }
+
+        usedTokens.push({ token: firstCharacter, fullToken: token });
+
+        const parseResult = parser.run(
+          dateStr,
+          token,
+          locale.match,
+          subFnOptions,
+        );
+
+        if (!parseResult) {
+          return constructFrom(referenceDate, NaN);
+        }
+
+        setters.push(parseResult.setter);
+
+        dateStr = parseResult.rest;
+      } else {
+        if (firstCharacter.match(unescapedLatinCharacterRegExp)) {
+          throw new RangeError(
+            "Format string contains an unescaped latin alphabet character `" +
+              firstCharacter +
+              "`",
+          );
+        }
+
+        // Replace two single quote characters with one single quote character
+        if (token === "''") {
+          token = "'";
+        } else if (firstCharacter === "'") {
+          token = cleanEscapedString(token);
+        }
+
+        // Cut token from string, or, if string doesn't match the token, return Invalid Date
+        if (dateStr.indexOf(token) === 0) {
+          dateStr = dateStr.slice(token.length);
+        } else {
+          return constructFrom(referenceDate, NaN);
+        }
+      }
+    }
+
+    // Check if the remaining input contains something other than whitespace
+    if (dateStr.length > 0 && notWhitespaceRegExp.test(dateStr)) {
+      return constructFrom(referenceDate, NaN);
+    }
+
+    const uniquePrioritySetters = setters
+      .map((setter) => setter.priority)
+      .sort((a, b) => b - a)
+      .filter((priority, index, array) => array.indexOf(priority) === index)
+      .map((priority) =>
+        setters
+          .filter((setter) => setter.priority === priority)
+          .sort((a, b) => b.subPriority - a.subPriority),
+      )
+      .map((setterArray) => setterArray[0]);
+
+    let date = toDate(referenceDate);
+
+    if (isNaN(date.getTime())) {
+      return constructFrom(referenceDate, NaN);
+    }
+
+    const flags = {};
+    for (const setter of uniquePrioritySetters) {
+      if (!setter.validate(date, subFnOptions)) {
+        return constructFrom(referenceDate, NaN);
+      }
+
+      const result = setter.set(date, flags, subFnOptions);
+      // Result is tuple (date, flags)
+      if (Array.isArray(result)) {
+        date = result[0];
+        Object.assign(flags, result[1]);
+        // Result is date
+      } else {
+        date = result;
+      }
+    }
+
+    return constructFrom(referenceDate, date);
+  }
+
+  function cleanEscapedString(input) {
+    return input.match(escapedStringRegExp)[1].replace(doubleQuoteRegExp, "'");
+  }
+
+  /**
+   * @name startOfHour
+   * @category Hour Helpers
+   * @summary Return the start of an hour for the given date.
+   *
+   * @description
+   * Return the start of an hour for the given date.
+   * The result will be in the local timezone.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The original date
+   *
+   * @returns The start of an hour
+   *
+   * @example
+   * // The start of an hour for 2 September 2014 11:55:00:
+   * const result = startOfHour(new Date(2014, 8, 2, 11, 55))
+   * //=> Tue Sep 02 2014 11:00:00
+   */
+  function startOfHour(date) {
+    const _date = toDate(date);
+    _date.setMinutes(0, 0, 0);
+    return _date;
+  }
+
+  /**
+   * @name startOfSecond
+   * @category Second Helpers
+   * @summary Return the start of a second for the given date.
+   *
+   * @description
+   * Return the start of a second for the given date.
+   * The result will be in the local timezone.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param date - The original date
+   *
+   * @returns The start of a second
+   *
+   * @example
+   * // The start of a second for 1 December 2014 22:15:45.400:
+   * const result = startOfSecond(new Date(2014, 11, 1, 22, 15, 45, 400))
+   * //=> Mon Dec 01 2014 22:15:45.000
+   */
+  function startOfSecond(date) {
+    const _date = toDate(date);
+    _date.setMilliseconds(0);
+    return _date;
+  }
+
+  /**
+   * The {@link parseISO} function options.
+   */
+
+  /**
+   * @name parseISO
+   * @category Common Helpers
+   * @summary Parse ISO string
+   *
+   * @description
+   * Parse the given string in ISO 8601 format and return an instance of Date.
+   *
+   * Function accepts complete ISO 8601 formats as well as partial implementations.
+   * ISO 8601: http://en.wikipedia.org/wiki/ISO_8601
+   *
+   * If the argument isn't a string, the function cannot parse the string or
+   * the values are invalid, it returns Invalid Date.
+   *
+   * @typeParam DateType - The `Date` type, the function operates on. Gets inferred from passed arguments. Allows to use extensions like [`UTCDate`](https://github.com/date-fns/utc).
+   *
+   * @param argument - The value to convert
+   * @param options - An object with options
+   *
+   * @returns The parsed date in the local time zone
+   *
+   * @example
+   * // Convert string '2014-02-11T11:30:30' to date:
+   * const result = parseISO('2014-02-11T11:30:30')
+   * //=> Tue Feb 11 2014 11:30:30
+   *
+   * @example
+   * // Convert string '+02014101' to date,
+   * // if the additional number of digits in the extended year format is 1:
+   * const result = parseISO('+02014101', { additionalDigits: 1 })
+   * //=> Fri Apr 11 2014 00:00:00
+   */
+  function parseISO(argument, options) {
+    const additionalDigits = options?.additionalDigits ?? 2;
+    const dateStrings = splitDateString(argument);
+
+    let date;
+    if (dateStrings.date) {
+      const parseYearResult = parseYear(dateStrings.date, additionalDigits);
+      date = parseDate(parseYearResult.restDateString, parseYearResult.year);
+    }
+
+    if (!date || isNaN(date.getTime())) {
+      return new Date(NaN);
+    }
+
+    const timestamp = date.getTime();
+    let time = 0;
+    let offset;
+
+    if (dateStrings.time) {
+      time = parseTime(dateStrings.time);
+      if (isNaN(time)) {
+        return new Date(NaN);
+      }
+    }
+
+    if (dateStrings.timezone) {
+      offset = parseTimezone(dateStrings.timezone);
+      if (isNaN(offset)) {
+        return new Date(NaN);
+      }
+    } else {
+      const dirtyDate = new Date(timestamp + time);
+      // JS parsed string assuming it's in UTC timezone
+      // but we need it to be parsed in our timezone
+      // so we use utc values to build date in our timezone.
+      // Year values from 0 to 99 map to the years 1900 to 1999
+      // so set year explicitly with setFullYear.
+      const result = new Date(0);
+      result.setFullYear(
+        dirtyDate.getUTCFullYear(),
+        dirtyDate.getUTCMonth(),
+        dirtyDate.getUTCDate(),
+      );
+      result.setHours(
+        dirtyDate.getUTCHours(),
+        dirtyDate.getUTCMinutes(),
+        dirtyDate.getUTCSeconds(),
+        dirtyDate.getUTCMilliseconds(),
+      );
+      return result;
+    }
+
+    return new Date(timestamp + time + offset);
+  }
+
+  const patterns = {
+    dateTimeDelimiter: /[T ]/,
+    timeZoneDelimiter: /[Z ]/i,
+    timezone: /([Z+-].*)$/,
+  };
+
+  const dateRegex =
+    /^-?(?:(\d{3})|(\d{2})(?:-?(\d{2}))?|W(\d{2})(?:-?(\d{1}))?|)$/;
+  const timeRegex =
+    /^(\d{2}(?:[.,]\d*)?)(?::?(\d{2}(?:[.,]\d*)?))?(?::?(\d{2}(?:[.,]\d*)?))?$/;
+  const timezoneRegex = /^([+-])(\d{2})(?::?(\d{2}))?$/;
+
+  function splitDateString(dateString) {
+    const dateStrings = {};
+    const array = dateString.split(patterns.dateTimeDelimiter);
+    let timeString;
+
+    // The regex match should only return at maximum two array elements.
+    // [date], [time], or [date, time].
+    if (array.length > 2) {
+      return dateStrings;
+    }
+
+    if (/:/.test(array[0])) {
+      timeString = array[0];
+    } else {
+      dateStrings.date = array[0];
+      timeString = array[1];
+      if (patterns.timeZoneDelimiter.test(dateStrings.date)) {
+        dateStrings.date = dateString.split(patterns.timeZoneDelimiter)[0];
+        timeString = dateString.substr(
+          dateStrings.date.length,
+          dateString.length,
+        );
+      }
+    }
+
+    if (timeString) {
+      const token = patterns.timezone.exec(timeString);
+      if (token) {
+        dateStrings.time = timeString.replace(token[1], "");
+        dateStrings.timezone = token[1];
+      } else {
+        dateStrings.time = timeString;
+      }
+    }
+
+    return dateStrings;
+  }
+
+  function parseYear(dateString, additionalDigits) {
+    const regex = new RegExp(
+      "^(?:(\\d{4}|[+-]\\d{" +
+        (4 + additionalDigits) +
+        "})|(\\d{2}|[+-]\\d{" +
+        (2 + additionalDigits) +
+        "})$)",
+    );
+
+    const captures = dateString.match(regex);
+    // Invalid ISO-formatted year
+    if (!captures) return { year: NaN, restDateString: "" };
+
+    const year = captures[1] ? parseInt(captures[1]) : null;
+    const century = captures[2] ? parseInt(captures[2]) : null;
+
+    // either year or century is null, not both
+    return {
+      year: century === null ? year : century * 100,
+      restDateString: dateString.slice((captures[1] || captures[2]).length),
+    };
+  }
+
+  function parseDate(dateString, year) {
+    // Invalid ISO-formatted year
+    if (year === null) return new Date(NaN);
+
+    const captures = dateString.match(dateRegex);
+    // Invalid ISO-formatted string
+    if (!captures) return new Date(NaN);
+
+    const isWeekDate = !!captures[4];
+    const dayOfYear = parseDateUnit(captures[1]);
+    const month = parseDateUnit(captures[2]) - 1;
+    const day = parseDateUnit(captures[3]);
+    const week = parseDateUnit(captures[4]);
+    const dayOfWeek = parseDateUnit(captures[5]) - 1;
+
+    if (isWeekDate) {
+      if (!validateWeekDate(year, week, dayOfWeek)) {
+        return new Date(NaN);
+      }
+      return dayOfISOWeekYear(year, week, dayOfWeek);
+    } else {
+      const date = new Date(0);
+      if (
+        !validateDate(year, month, day) ||
+        !validateDayOfYearDate(year, dayOfYear)
+      ) {
+        return new Date(NaN);
+      }
+      date.setUTCFullYear(year, month, Math.max(dayOfYear, day));
+      return date;
+    }
+  }
+
+  function parseDateUnit(value) {
+    return value ? parseInt(value) : 1;
+  }
+
+  function parseTime(timeString) {
+    const captures = timeString.match(timeRegex);
+    if (!captures) return NaN; // Invalid ISO-formatted time
+
+    const hours = parseTimeUnit(captures[1]);
+    const minutes = parseTimeUnit(captures[2]);
+    const seconds = parseTimeUnit(captures[3]);
+
+    if (!validateTime(hours, minutes, seconds)) {
+      return NaN;
+    }
+
+    return (
+      hours * millisecondsInHour + minutes * millisecondsInMinute + seconds * 1000
+    );
+  }
+
+  function parseTimeUnit(value) {
+    return (value && parseFloat(value.replace(",", "."))) || 0;
+  }
+
+  function parseTimezone(timezoneString) {
+    if (timezoneString === "Z") return 0;
+
+    const captures = timezoneString.match(timezoneRegex);
+    if (!captures) return 0;
+
+    const sign = captures[1] === "+" ? -1 : 1;
+    const hours = parseInt(captures[2]);
+    const minutes = (captures[3] && parseInt(captures[3])) || 0;
+
+    if (!validateTimezone(hours, minutes)) {
+      return NaN;
+    }
+
+    return sign * (hours * millisecondsInHour + minutes * millisecondsInMinute);
+  }
+
+  function dayOfISOWeekYear(isoWeekYear, week, day) {
+    const date = new Date(0);
+    date.setUTCFullYear(isoWeekYear, 0, 4);
+    const fourthOfJanuaryDay = date.getUTCDay() || 7;
+    const diff = (week - 1) * 7 + day + 1 - fourthOfJanuaryDay;
+    date.setUTCDate(date.getUTCDate() + diff);
+    return date;
+  }
+
+  // Validation functions
+
+  // February is null to handle the leap year (using ||)
+  const daysInMonths = [31, null, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+  function isLeapYearIndex(year) {
+    return year % 400 === 0 || (year % 4 === 0 && year % 100 !== 0);
+  }
+
+  function validateDate(year, month, date) {
+    return (
+      month >= 0 &&
+      month <= 11 &&
+      date >= 1 &&
+      date <= (daysInMonths[month] || (isLeapYearIndex(year) ? 29 : 28))
+    );
+  }
+
+  function validateDayOfYearDate(year, dayOfYear) {
+    return dayOfYear >= 1 && dayOfYear <= (isLeapYearIndex(year) ? 366 : 365);
+  }
+
+  function validateWeekDate(_year, week, day) {
+    return week >= 1 && week <= 53 && day >= 0 && day <= 6;
+  }
+
+  function validateTime(hours, minutes, seconds) {
+    if (hours === 24) {
+      return minutes === 0 && seconds === 0;
+    }
+
+    return (
+      seconds >= 0 &&
+      seconds < 60 &&
+      minutes >= 0 &&
+      minutes < 60 &&
+      hours >= 0 &&
+      hours < 25
+    );
+  }
+
+  function validateTimezone(_hours, minutes) {
+    return minutes >= 0 && minutes <= 59;
+  }
+
+  /*!
+   * chartjs-adapter-date-fns v3.0.0
+   * https://www.chartjs.org
+   * (c) 2022 chartjs-adapter-date-fns Contributors
+   * Released under the MIT license
+   */
+
+  const FORMATS = {
+    datetime: 'MMM d, yyyy, h:mm:ss aaaa',
+    millisecond: 'h:mm:ss.SSS aaaa',
+    second: 'h:mm:ss aaaa',
+    minute: 'h:mm aaaa',
+    hour: 'ha',
+    day: 'MMM d',
+    week: 'PP',
+    month: 'MMM yyyy',
+    quarter: 'qqq - yyyy',
+    year: 'yyyy'
+  };
+
+  adapters._date.override({
+    _id: 'date-fns', // DEBUG
+
+    formats: function() {
+      return FORMATS;
+    },
+
+    parse: function(value, fmt) {
+      if (value === null || typeof value === 'undefined') {
+        return null;
+      }
+      const type = typeof value;
+      if (type === 'number' || value instanceof Date) {
+        value = toDate(value);
+      } else if (type === 'string') {
+        if (typeof fmt === 'string') {
+          value = parse(value, fmt, new Date(), this.options);
+        } else {
+          value = parseISO(value, this.options);
+        }
+      }
+      return isValid(value) ? value.getTime() : null;
+    },
+
+    format: function(time, fmt) {
+      return format(time, fmt, this.options);
+    },
+
+    add: function(time, amount, unit) {
+      switch (unit) {
+      case 'millisecond': return addMilliseconds(time, amount);
+      case 'second': return addSeconds(time, amount);
+      case 'minute': return addMinutes(time, amount);
+      case 'hour': return addHours(time, amount);
+      case 'day': return addDays(time, amount);
+      case 'week': return addWeeks(time, amount);
+      case 'month': return addMonths(time, amount);
+      case 'quarter': return addQuarters(time, amount);
+      case 'year': return addYears(time, amount);
+      default: return time;
+      }
+    },
+
+    diff: function(max, min, unit) {
+      switch (unit) {
+      case 'millisecond': return differenceInMilliseconds(max, min);
+      case 'second': return differenceInSeconds(max, min);
+      case 'minute': return differenceInMinutes(max, min);
+      case 'hour': return differenceInHours(max, min);
+      case 'day': return differenceInDays(max, min);
+      case 'week': return differenceInWeeks(max, min);
+      case 'month': return differenceInMonths(max, min);
+      case 'quarter': return differenceInQuarters(max, min);
+      case 'year': return differenceInYears(max, min);
+      default: return 0;
+      }
+    },
+
+    startOf: function(time, unit, weekday) {
+      switch (unit) {
+      case 'second': return startOfSecond(time);
+      case 'minute': return startOfMinute(time);
+      case 'hour': return startOfHour(time);
+      case 'day': return startOfDay(time);
+      case 'week': return startOfWeek(time);
+      case 'isoWeek': return startOfWeek(time, {weekStartsOn: +weekday});
+      case 'month': return startOfMonth(time);
+      case 'quarter': return startOfQuarter(time);
+      case 'year': return startOfYear(time);
+      default: return time;
+      }
+    },
+
+    endOf: function(time, unit) {
+      switch (unit) {
+      case 'second': return endOfSecond(time);
+      case 'minute': return endOfMinute(time);
+      case 'hour': return endOfHour(time);
+      case 'day': return endOfDay(time);
+      case 'week': return endOfWeek(time);
+      case 'month': return endOfMonth(time);
+      case 'quarter': return endOfQuarter(time);
+      case 'year': return endOfYear(time);
+      default: return time;
+      }
+    }
+  });
+
+  class TitleCard extends s {
 
     static styles = r$2`
+    .logo-container {
+      height: 40px;
+      padding-top: 15px;
+      padding-bottom: 15px;
+    }
+
+    #hildebrand-logo {
+      width: 100%;
+      height: 100%;
+    }
   `;
+
+    static get properties() {
+      return {
+        hass: { type: Object },
+        config: { type: Object }
+      }
+    }
+
+    setConfig(config) {
+      this.config = config;
+    }
+
+    getCardSize() {
+      return 20;
+    }
+
+    render() {
+      return $`
+      <div class="logo-container">
+        <svg id="hildebrand-logo" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 88 16">
+          <defs>
+            <path id="hildebrand-logo-a" d="M8.07.12H.033v14.886h16.075V.12H8.07z"></path>
+            <path id="hildebrand-logo-c" d="M.082 10.6h66.672V.127H.082V10.6z"></path>
+          </defs>
+          <g fill="none" fill-rule="evenodd">
+            <g transform="translate(0 .136)">
+              <mask id="hildebrand-logo-b" fill="#fff">
+                <use xlink:href="#hildebrand-logo-a"></use>
+              </mask>
+              <path fill="#E77C2B" d="M16.087 12.746c0 1.248-1.093 2.26-2.44 2.26H.033L.025 2.38c0-1.245 1.093-2.255 2.44-2.255L16.11.12l-.02 12.626" mask="url(#hildebrand-logo-b)"></path>
+              <path fill="#B4243F" d="M11.45 13.4c0 .887-.778 1.606-1.735 1.606H.032V6.03c0-.885.78-1.603 1.738-1.603l9.695-.002-.016 8.975" mask="url(#hildebrand-logo-b)"></path>
+            </g>
+            <g transform="translate(20.47 4.628)">
+              <mask id="hildebrand-logo-d" fill="#fff">
+                <use xlink:href="#hildebrand-logo-c"></use>
+              </mask>
+              <path fill="#B4243F" d="M4.76 10.48V6.015c0-.445-.14-.803-.418-1.074-.28-.268-.644-.404-1.092-.404-.28 0-.562.076-.845.227-.283.15-.484.323-.61.515v5.202H.082V.532L1.795.126v3.568c.44-.396 1.036-.594 1.803-.594.9 0 1.6.25 2.1.753.5.505.75 1.226.75 2.162v4.465H4.76M9.544.413c.27 0 .5.095.693.286.19.193.283.424.283.693 0 .27-.094.502-.283.69-.193.195-.424.29-.693.29-.27 0-.5-.095-.69-.29-.193-.188-.287-.42-.287-.69 0-.27.094-.5.287-.694.19-.192.42-.287.69-.287M8.68 10.48V4.62h-.923V3.227h2.624v7.253h-1.7M12.6.532L14.29.126V8.28c0 .894.265 1.425.792 1.597-.26.493-.705.746-1.335.746-.764 0-1.144-.534-1.144-1.598V.532m8.363 8.227c-.072.098-.227.2-.463.296-.235.096-.435.143-.597.143-1.448 0-2.172-.754-2.172-2.263 0-.775.185-1.367.55-1.78.36-.414.882-.62 1.558-.62.39 0 .767.143 1.125.435V8.76zm1.686 1.72V.126l-1.687.406V3.44c-.45-.228-.948-.34-1.498-.34-1 0-1.83.36-2.494 1.08-.662.716-.996 1.653-.996 2.8 0 1.144.287 2.04.868 2.683.578.638 1.372.96 2.38.96.355 0 .697-.06 1.03-.173.337-.12.573-.258.71-.412v.442h1.687zm4.835-5.958c1.044 0 1.626.527 1.746 1.578H25.7c.232-1.05.827-1.578 1.785-1.578m3.446 1.915c0-.967-.32-1.768-.953-2.394-.632-.63-1.474-.943-2.52-.943-.985 0-1.828.354-2.53 1.062-.705.71-1.056 1.636-1.056 2.777 0 1.158.322 2.064.96 2.71.64.647 1.508.973 2.61.973 1.177 0 2.06-.244 2.654-.725l-.654-1.294c-.4.4-.983.595-1.752.595-.614 0-1.102-.16-1.466-.48-.365-.317-.56-.766-.595-1.34h5.16c.096-.42.144-.733.144-.943m4.054-1.9c1.403 0 2.104.733 2.104 2.204 0 .858-.17 1.474-.51 1.864-.34.388-.917.583-1.73.583-.426 0-.758-.147-1.007-.438V4.96c.264-.28.643-.424 1.144-.424m.23 6.087c1.114 0 2-.356 2.653-1.06.65-.707.978-1.667.978-2.88 0-1.047-.324-1.908-.974-2.578-.646-.67-1.5-1.005-2.56-1.005-.528 0-1.02.138-1.47.41V.126l-1.686.406v10.09h.954l.377-.536c.484.36 1.06.537 1.73.537m8.894-5.816c-.3-.194-.63-.285-.99-.285-.39 0-.74.175-1.043.532-.305.357-.456.79-.456 1.305v4.12h-1.685V3.227h1.686v.67c.472-.53 1.1-.797 1.882-.797.575 0 1.016.087 1.322.265l-.715 1.442m5.027 2.95c0 1.01-.507 1.514-1.515 1.514-.75 0-1.123-.32-1.123-.968 0-.872.663-1.306 1.988-1.306.143 0 .36.028.65.086v.674zm.55 2.594c.193.182.413.273.658.273.223 0 .42-.03.592-.088.17-.055.326-.205.466-.453-.39-.247-.58-.853-.58-1.822V6.712c0-1.4-.258-2.354-.77-2.86-.513-.5-1.32-.752-2.418-.752-.8 0-1.493.142-2.07.425l.362 1.31c.427-.21.953-.313 1.588-.313 1.072 0 1.608.427 1.608 1.28-.27-.066-.504-.103-.702-.103-1.154 0-2.04.238-2.668.71-.624.474-.94 1.13-.94 1.966 0 .72.22 1.273.665 1.66.446.393 1.055.587 1.83.587.413 0 .808-.082 1.19-.244.376-.16.64-.366.795-.617.067.21.198.406.394.588zm7.477.13V6.3c0-.62-.118-1.07-.357-1.353-.235-.283-.618-.425-1.153-.425-.25 0-.513.068-.796.207-.28.14-.498.316-.658.52v5.23h-1.686V3.227h1.214l.31.674c.46-.533 1.135-.8 2.032-.8.86 0 1.54.254 2.034.773.497.52.746 1.236.746 2.162v4.445h-1.686m7.904-1.72c-.074.098-.228.2-.465.296-.234.096-.434.143-.596.143-1.45 0-2.172-.754-2.172-2.263 0-.775.183-1.367.546-1.78.368-.414.886-.62 1.557-.62.394 0 .77.143 1.13.435V8.76zm1.686 1.72V.126l-1.686.406V3.44c-.452-.228-.952-.34-1.5-.34-.997 0-1.832.36-2.493 1.08-.662.716-.996 1.653-.996 2.8 0 1.144.286 2.04.865 2.683.578.638 1.37.96 2.38.96.355 0 .698-.06 1.032-.173.334-.12.57-.258.71-.412v.442h1.687z" mask="url(#hildebrand-logo-d)"></path>
+            </g>
+          </g>
+        </svg>
+      </div>
+    `;
+    }
+
+  }
+
+  class SpacerCard extends s {
+
+    static styles = r$2`
+    .spacer {
+      height: 70px;
+    }
+  `;
+
+    static get properties() {
+      return {
+        hass: { type: Object },
+        config: { type: Object }
+      }
+    }
+
+    setConfig(config) {
+      this.config = config;
+    }
+
+    getCardSize() {
+      return 20;
+    }
+
+    render() {
+      return $`
+      <div class="spacer">
+      </div>
+    `;
+    }
+
+  }
+
+  class MixCard extends s {
+
+    isChartCreated = false;
 
     static get properties() {
       return {
@@ -30431,6 +37502,9 @@
         options: {
           responsive: true,
           borderWidth: 1,
+          animation: {
+            duration: 0
+          },
           plugins: {
             legend: {
               display: true,
@@ -30442,16 +37516,43 @@
           }
         }
       });
+      this.isChartCreated = true;
+    }
+
+    getCardSize() {
+      return 12;
     }
 
     render() {
+      if (this.isChartCreated) {
+        this.chart.data = {
+          labels: ["Biomass", "Coal", "Imports", "Gas", "Nuclear", "Other", "Hydro", "Solar", "Wind"],
+          datasets: [{
+            label: "Asdf",
+            data: [
+              this.hass.states["sensor.biomass"].state,
+              this.hass.states["sensor.coal"].state,
+              this.hass.states["sensor.imports"].state,
+              this.hass.states["sensor.gas"].state,
+              this.hass.states["sensor.nuclear"].state,
+              this.hass.states["sensor.other"].state,
+              this.hass.states["sensor.hydro"].state,
+              this.hass.states["sensor.solar"].state,
+              this.hass.states["sensor.wind"].state,
+            ],
+            backgroundColor: ['#d7d7d7', '#B8C5D6', '#ff7300', '#afe65a', '#6C698D', '#ff4b00', '#ff9b00', '#FFD972', '#ffc300', '#235a00']
+          }]
+        };
+        this.chart.update();
+      }
+
       return $`
       <ha-card header="Current Energy Mix">
         <div class="chart-container">
           <canvas id="mix-canvas"></canvas>
         </div>
       </ha-card>
-    `
+    `;
     }
 
     static styles = r$2`
@@ -30466,7 +37567,9 @@
   `
   }
 
-  class ConsumptionCard extends s {
+  class IntensityCard extends s {
+
+    isChartCreated = false;
 
     static styles = r$2`
   `;
@@ -30504,6 +37607,10 @@
         }
       }
       return "#ff0000"
+    }
+
+    getCardSize() {
+      return 10;
     }
 
     firstUpdated() {
@@ -30555,6 +37662,9 @@
         },
         options: {
           responsive: true,
+          animation: {
+            duration: 0
+          },
           plugins: {
             legend: {
               display: false
@@ -30562,16 +37672,64 @@
           }
         }
       });
+      this.isChartCreated = true;
     }
 
     render() {
+      if (this.isChartCreated) {
+        let data = [
+          this.hass.states["sensor.biomass_carbon"].state,
+          this.hass.states["sensor.coal_carbon"].state,
+          this.hass.states["sensor.dutch_imports_carbon"].state,
+          this.hass.states["sensor.french_imports_carbon"].state,
+          this.hass.states["sensor.gas_combined_cycle_carbon"].state,
+          this.hass.states["sensor.gas_open_cycle_carbon"].state,
+          this.hass.states["sensor.hydro_carbon"].state,
+          this.hass.states["sensor.irish_imports_carbon"].state,
+          this.hass.states["sensor.nuclear_carbon"].state,
+          this.hass.states["sensor.oil_carbon"].state,
+          this.hass.states["sensor.other_carbon"].state,
+          this.hass.states["sensor.pumped_storage_carbon"].state,
+          this.hass.states["sensor.solar_carbon"].state,
+          this.hass.states["sensor.wind_carbon"].state,
+        ];
+        let labels = ["Biomass", "Coal", "Dutch Imports", "French Imports", "Gas (Combined Cycle)", "Gas (Open Cycle)", "Hydro", "Irish Imports", "Nuclear", "Oil", "Other", "Pumped Storage", "Solar", "Wind"];
+        let colors = [];
+
+        let i = 0;
+        while (i < data.length) {
+          colors.push(this.findScaleColor(data[i]));
+          ++i;
+        }
+
+        while (i < data.length) {
+          if (data[i] == 0) {
+            data.splice(i, 1);
+            labels.splice(i, 1);
+          } else {
+            ++i;
+          }
+        }
+
+        this.chart.data = {
+          labels: labels,
+          datasets: [{
+            label: "",
+            data: data,
+            barPercentage: 1,
+            backgroundColor: colors
+          }]
+        };
+        this.chart.update();
+      }
+
       return $`
       <ha-card header="Carbon Intensity by Type (gCO₂/kWh)">
         <div class="chart-container">
           <canvas></canvas>
         </div>
       </ha-card>
-    `
+    `;
     }
 
     static styles = r$2`
@@ -30582,6 +37740,8 @@
   }
 
   class CarbonCard extends s {
+    old_current_kwh = 0;
+    total_carbon = 0;
 
     static get properties() {
       return {
@@ -30594,16 +37754,82 @@
       this.config = config;
     }
 
-    constructor() {
-      super();
-      this.chart = {};
+    static styles = r$2`
+    .carbon {
+      font-size: 20px;
+      margin: 0px auto auto;
+      width: 300px;
+      height: 140px;
+      background: none;
+      position: relative;
 
-      // Set chart defaults
-      Chart.defaults.title = {
-        fontSize: 14,
-        fontStyle: 'normal',
+      text-align: center;
+      vertical-align: middle;
+      line-height: 100px;
+      z-index: 2;
+      color: black;
+    }
+
+    .leaf {
+      border: 0px solid white;
+      width: 110px;
+      height: 300px;
+      display: block;
+      margin-top: -100px;
+      margin-left: auto;
+      margin-right: auto;
+      position: absolute;
+      z-index: 1;
+      transform: rotate(90deg);
+      left: 40%;
+    }
+
+    #leaf-container {
+      margin: auto;
+    }
+  `;
+
+    getCardSize() {
+      return 8;
+    }
+
+    handleHistoryData(message) {
+      console.log(message);
+    }
+
+    subscribeHistory() {
+      var midnight = new Date();
+      midnight.setHours(5, 0, 0, 0);
+
+      var future = new Date();
+      future.setFullYear(future.getFullYear() + 1);
+
+      const params = {
+        type: "history/stream",
+        entity_ids: [
+          "sensor.smart_meter_electricity_import_today",
+          "sensor.biomass",
+          "sensor.coal",
+          "sensor.imports",
+          "sensor.gas",
+          "sensor.nuclear",
+          "sensor.other",
+          "sensor.hydro",
+          "sensor.solar",
+          "sensor.wind"
+        ],
+        start_time: midnight,
+        end_time: future,
+        minimal_response: true
       };
-      Chart.defaults.color = '#fff';
+      return this.hass.connection.subscribeMessage(
+        (message) => this.handleHistoryData(message),
+        params
+      );
+    };
+
+    firstUpdated() {
+      this.subscribeHistory();
     }
 
     average(list) {
@@ -30655,92 +37881,413 @@
         this.hass.states["sensor.wind"].state / 100,
       ];
 
-      let bio_carbon = (current_kwh * mix[0]) * intensityFactors[0];
-      let coal_carbon = (current_kwh * mix[1]) * intensityFactors[1];
+      let kwh_difference;
+      if (current_kwh > this.old_current_kwh) {
+        kwh_difference = current_kwh - this.old_current_kwh;
 
-      let import_carbon = (current_kwh * mix[2]) * this.average(intensityFactors[2], intensityFactors[3], intensityFactors[7]);
+        let bio_carbon = (kwh_difference * mix[0]) * intensityFactors[0];
+        let coal_carbon = (kwh_difference * mix[1]) * intensityFactors[1];
 
-      let gas_cc_carbon = (current_kwh * mix[3] * 0.8) * intensityFactors[3];
-      let gas_oc_carbon = (current_kwh * mix[3] * 0.2) * intensityFactors[4];
-      let gas_carbon = gas_cc_carbon + gas_oc_carbon;
+        let import_carbon = (kwh_difference * mix[2]) * this.average(intensityFactors[2], intensityFactors[3], intensityFactors[7]);
 
-      /*
-      <path d="M0 0 C4.06387723 0.53667604 7.22783182 1.37844558 10.84375 3.30078125 C11.74859131 3.77692871 12.65343262 4.25307617 13.58569336 4.74365234 C14.54741455 5.26137207 15.50913574 5.7790918 16.5 6.3125 C17.51392822 6.85084473 18.52785645 7.38918945 19.57250977 7.94384766 C22.72017255 9.61977134 25.86054387 11.30876217 29 13 C29.93569824 13.50031738 30.87139648 14.00063477 31.83544922 14.51611328 C45.51019845 21.83039998 58.9369546 29.53563064 72.29492188 37.41162109 C74.68431418 38.8146343 77.08121617 40.20278427 79.484375 41.58203125 C88.71110246 46.89709697 97.64169063 52.603669 106.53637695 58.45703125 C112.22584598 62.20086642 117.94983977 65.86789914 123.75 69.4375 C129.05236158 72.7133634 134.13436658 76.17204954 139.1328125 79.90234375 C141.8482395 81.88897086 144.60697284 83.78176106 147.39550781 85.6628418 C157.4618071 92.46268407 167.06753803 99.8241663 176.68994141 107.23339844 C179.57936472 109.44306522 182.5056097 111.59707655 185.4375 113.75 C190.45800431 117.49568296 195.19560507 121.51902292 199.92260742 125.62329102 C203.30596036 128.56004324 206.72799893 131.41627032 210.25 134.1875 C215.37124195 138.24112148 220.19040226 142.58404493 225 147 C225.94875 147.86753906 226.8975 148.73507813 227.875 149.62890625 C229.90144153 151.48243186 231.92427029 153.33980861 233.9453125 155.19921875 C235.90973337 157.00481675 237.88434849 158.79639557 239.8671875 160.58203125 C245.83140196 165.97245272 251.61676716 171.51347146 257.3125 177.1875 C257.97024414 177.84065186 258.62798828 178.49380371 259.30566406 179.16674805 C263.16546923 183.0387431 266.83559139 187.02453464 270.40795898 191.1628418 C272.51365923 193.59274432 274.69330059 195.95082875 276.875 198.3125 C281.79507679 203.71493726 286.44350769 209.2891963 291 215 C291.42925781 215.53496094 291.85851562 216.06992188 292.30078125 216.62109375 C299.1776915 225.20236792 305.73228727 233.96452974 312 243 C312.58467041 243.8350708 312.58467041 243.8350708 313.18115234 244.68701172 C334.21489371 274.85140838 352.1171888 308.84906117 360 345 C360.17901855 345.75700195 360.35803711 346.51400391 360.54248047 347.29394531 C366.10723587 371.29048547 367.0940838 399.24433241 360 423 C359.68651611 424.09103027 359.68651611 424.09103027 359.36669922 425.20410156 C354.74279448 440.88035089 347.08091543 454.94083361 336 467 C335.55285645 467.48952148 335.10571289 467.97904297 334.64501953 468.48339844 C327.52504234 476.19242969 319.97024911 482.46626993 311 488 C309.906875 488.67675781 308.81375 489.35351562 307.6875 490.05078125 C291.39421719 499.63302547 272.64933557 504.72523225 254 507 C252.76032471 507.17128418 251.52064941 507.34256836 250.2434082 507.51904297 C243.26076256 508.38896822 236.21314894 508.19494097 229.1875 508.1875 C228.4060965 508.18789276 227.62469299 508.18828552 226.8196106 508.18869019 C215.08598486 508.18161276 203.63063282 507.62432079 192 506 C189.93856677 505.78136314 187.87619561 505.57113636 185.8125 505.375 C184.554375 505.25125 183.29625 505.1275 182 505 C197.06562088 529.97721357 221.14761293 547.64869697 246 562 C246.7439502 562.43441406 247.48790039 562.86882813 248.25439453 563.31640625 C250.49558144 564.62015726 252.74470064 565.90832738 255 567.1875 C255.73081787 567.60298096 256.46163574 568.01846191 257.21459961 568.4465332 C261.0835847 570.58605434 264.92345758 572.41962573 269.0625 573.98046875 C281.30385359 578.62946175 281.30385359 578.62946175 283.5 582.953125 C283.98658948 586.03992702 284.06113963 588.8818789 284 592 C284.60578253 594.01927511 285.23589619 596.03516163 286 598 C279.41118517 599.40883946 274.66737283 598.20662824 269.10986328 594.67456055 C266.1629338 592.6848205 263.24526374 590.65613315 260.33837891 588.60839844 C257.17012016 586.42918685 253.91179921 584.41228749 250.64111328 582.39135742 C242.42663853 577.31473029 234.5375545 572.05098125 227 566 C226.49339844 565.59491211 225.98679687 565.18982422 225.46484375 564.77246094 C213.50307498 555.13985721 202.47219913 544.49970222 192.94140625 532.44140625 C191.19276758 530.24241396 189.3804179 528.14852168 187.5 526.0625 C182.98971361 520.97914192 179.02143445 515.47133938 175 510 C174.28714844 510.845625 173.57429688 511.69125 172.83984375 512.5625 C168.09569982 518.18362192 163.34753187 523.7959628 158.47265625 529.3046875 C157.12644467 530.8544377 155.84087615 532.45633509 154.5625 534.0625 C151.328299 537.76999871 147.77302932 540.85469591 144 544 C143.28199219 544.61746094 142.56398437 545.23492188 141.82421875 545.87109375 C126.04540078 559.05104759 107.99501189 568.23472172 88 573 C87.09894531 573.22558594 86.19789063 573.45117188 85.26953125 573.68359375 C56.70219926 579.66088544 26.48199277 572.10591043 2 557 C-2.17545928 554.19715092 -6.10499741 551.17908309 -10 548 C-10.57137695 547.5354541 -11.14275391 547.0709082 -11.73144531 546.59228516 C-19.47733868 540.25454583 -26.58038065 533.71359351 -33 526 C-33.94166016 524.90558594 -33.94166016 524.90558594 -34.90234375 523.7890625 C-65.45233832 487.17904856 -80.96847519 440.16946707 -88.25 393.6875 C-88.40106201 392.72424805 -88.55212402 391.76099609 -88.70776367 390.76855469 C-89.18582378 387.5167753 -89.60335192 384.26276449 -90 381 C-90.08720306 380.29672577 -90.17440613 379.59345154 -90.26425171 378.86886597 C-92.19656046 362.82069437 -92.35845416 346.83579275 -92.3125 330.6875 C-92.31057675 329.34654756 -92.30873623 328.005595 -92.30697632 326.66464233 C-92.26932068 306.92323228 -91.70911656 287.57182027 -89 268 C-88.83902832 266.7413916 -88.67805664 265.4827832 -88.51220703 264.18603516 C-78.09874616 183.30915604 -50.65751955 105.57382089 0 0 Z " fill="#288F3F" transform="translate(92,0)"/>
-      <path d="M0 0 C4.06387723 0.53667604 7.22783182 1.37844558 10.84375 3.30078125 C11.74859131 3.77692871 12.65343262 4.25307617 13.58569336 4.74365234 C14.54741455 5.26137207 15.50913574 5.7790918 16.5 6.3125 C17.51392822 6.85084473 18.52785645 7.38918945 19.57250977 7.94384766 C22.72017255 9.61977134 25.86054387 11.30876217 29 13 C29.93569824 13.50031738 30.87139648 14.00063477 31.83544922 14.51611328 C45.51019845 21.83039998 58.9369546 29.53563064 72.29492188 37.41162109 C74.68431418 38.8146343 77.08121617 40.20278427 79.484375 41.58203125 C88.71110246 46.89709697 97.64169063 52.603669 106.53637695 58.45703125 C112.22584598 62.20086642 117.94983977 65.86789914 123.75 69.4375 C129.05236158 72.7133634 134.13436658 76.17204954 139.1328125 79.90234375 C141.8482395 81.88897086 144.60697284 83.78176106 147.39550781 85.6628418 C157.4618071 92.46268407 167.06753803 99.8241663 176.68994141 107.23339844 C179.57936472 109.44306522 182.5056097 111.59707655 185.4375 113.75 C190.45800431 117.49568296 195.19560507 121.51902292 199.92260742 125.62329102 C203.30596036 128.56004324 206.72799893 131.41627032 210.25 134.1875 C215.37124195 138.24112148 220.19040226 142.58404493 225 147 C225.94875 147.86753906 226.8975 148.73507813 227.875 149.62890625 C229.90144153 151.48243186 231.92427029 153.33980861 233.9453125 155.19921875 C235.90973337 157.00481675 237.88434849 158.79639557 239.8671875 160.58203125 C245.83140196 165.97245272 251.61676716 171.51347146 257.3125 177.1875 C257.97024414 177.84065186 258.62798828 178.49380371 259.30566406 179.16674805 C263.16546923 183.0387431 266.83559139 187.02453464 270.40795898 191.1628418 C272.51365923 193.59274432 274.69330059 195.95082875 276.875 198.3125 C281.79507679 203.71493726 286.44350769 209.2891963 291 215 C291.42925781 215.53496094 291.85851562 216.06992188 292.30078125 216.62109375 C299.1776915 225.20236792 305.73228727 233.96452974 312 243 C312.58467041 243.8350708 312.58467041 243.8350708 313.18115234 244.68701172 C334.21489371 274.85140838 352.1171888 308.84906117 360 345 C360.17901855 345.75700195 360.35803711 346.51400391 360.54248047 347.29394531 C366.10723587 371.29048547 367.0940838 399.24433241 360 423 C359.68651611 424.09103027 359.68651611 424.09103027 359.36669922 425.20410156 C354.74279448 440.88035089 347.08091543 454.94083361 336 467 C335.55285645 467.48952148 335.10571289 467.97904297 334.64501953 468.48339844 C327.52504234 476.19242969 319.97024911 482.46626993 311 488 C309.906875 488.67675781 308.81375 489.35351562 307.6875 490.05078125 C291.39421719 499.63302547 272.64933557 504.72523225 254 507 C252.76032471 507.17128418 251.52064941 507.34256836 250.2434082 507.51904297 C243.26076256 508.38896822 236.21314894 508.19494097 229.1875 508.1875 C228.4060965 508.18789276 227.62469299 508.18828552 226.8196106 508.18869019 C215.08598486 508.18161276 203.63063282 507.62432079 192 506 C189.93856677 505.78136314 187.87619561 505.57113636 185.8125 505.375 C184.554375 505.25125 183.29625 505.1275 182 505 C197.06562088 529.97721357 221.14761293 547.64869697 246 562 C246.7439502 562.43441406 247.48790039 562.86882813 248.25439453 563.31640625 C250.49558144 564.62015726 252.74470064 565.90832738 255 567.1875 C255.73081787 567.60298096 256.46163574 568.01846191 257.21459961 568.4465332 C261.0835847 570.58605434 264.92345758 572.41962573 269.0625 573.98046875 C281.30385359 578.62946175 281.30385359 578.62946175 283.5 582.953125 C283.98658948 586.03992702 284.06113963 588.8818789 284 592 C284.60578253 594.01927511 285.23589619 596.03516163 286 598 C279.41118517 599.40883946 274.66737283 598.20662824 269.10986328 594.67456055 C266.1629338 592.6848205 263.24526374 590.65613315 260.33837891 588.60839844 C257.17012016 586.42918685 253.91179921 584.41228749 250.64111328 582.39135742 C242.42663853 577.31473029 234.5375545 572.05098125 227 566 C226.49339844 565.59491211 225.98679687 565.18982422 225.46484375 564.77246094 C213.50307498 555.13985721 202.47219913 544.49970222 192.94140625 532.44140625 C191.19276758 530.24241396 189.3804179 528.14852168 187.5 526.0625 C182.98971361 520.97914192 179.02143445 515.47133938 175 510 C174.28714844 510.845625 173.57429688 511.69125 172.83984375 512.5625 C168.09569982 518.18362192 163.34753187 523.7959628 158.47265625 529.3046875 C157.12644467 530.8544377 155.84087615 532.45633509 154.5625 534.0625 C151.328299 537.76999871 147.77302932 540.85469591 144 544 C143.28199219 544.61746094 142.56398437 545.23492188 141.82421875 545.87109375 C126.04540078 559.05104759 107.99501189 568.23472172 88 573 C87.09894531 573.22558594 86.19789063 573.45117188 85.26953125 573.68359375 C56.70219926 579.66088544 26.48199277 572.10591043 2 557 C-2.17545928 554.19715092 -6.10499741 551.17908309 -10 548 C-10.57137695 547.5354541 -11.14275391 547.0709082 -11.73144531 546.59228516 C-19.47733868 540.25454583 -26.58038065 533.71359351 -33 526 C-33.94166016 524.90558594 -33.94166016 524.90558594 -34.90234375 523.7890625 C-65.45233832 487.17904856 -80.96847519 440.16946707 -88.25 393.6875 C-88.40106201 392.72424805 -88.55212402 391.76099609 -88.70776367 390.76855469 C-89.18582378 387.5167753 -89.60335192 384.26276449 -90 381 C-90.08720306 380.29672577 -90.17440613 379.59345154 -90.26425171 378.86886597 C-92.19656046 362.82069437 -92.35845416 346.83579275 -92.3125 330.6875 C-92.31057675 329.34654756 -92.30873623 328.005595 -92.30697632 326.66464233 C-92.26932068 306.92323228 -91.70911656 287.57182027 -89 268 C-88.83902832 266.7413916 -88.67805664 265.4827832 -88.51220703 264.18603516 C-78.09874616 183.30915604 -50.65751955 105.57382089 0 0 Z M1 2 C-36.81173236 76.37860775 -67.60341249 154.26740205 -75 444 C-63.79090525 477.53276312 -47.69791913 506.80670467 -24 533 C-23.00613281 534.12148437 -23.00613281 534.12148437 -21.9921875 535.265625 C-8.76071144 549.38711066 8.61947921 560.09257008 26.625 566.875 C27.35187012 567.14940918 28.07874023 567.42381836 28.82763672 567.70654297 C40.46776252 571.84188464 51.9886121 573.54102728 64.3125 573.4375 C65.57707031 573.43065186 66.84164062 573.42380371 68.14453125 573.41674805 C77.95039411 573.24908889 86.7149402 572.10516754 96 569 C97.12792969 568.62617187 98.25585938 568.25234375 99.41796875 567.8671875 C116.7476721 561.6144152 131.47452367 552.47554643 144.89453125 539.953125 C146.61257461 538.35939276 148.34865335 536.88541074 150.1875 535.4375 C156.25274456 530.18095472 161.08917077 523.72054922 166.125 517.5 C166.62789551 516.88334473 167.13079102 516.26668945 167.64892578 515.63134766 C171.1312791 511.28957842 174.14794577 506.7780149 177 502 C182.65820019 502.4232512 188.22604314 502.99248288 193.8125 504 C215.39743023 507.74584156 239.40062664 507.73699713 261 504 C262.73056641 503.70802734 262.73056641 503.70802734 264.49609375 503.41015625 C298.29449751 496.92669401 326.54354739 479.55515771 346.00390625 451.06640625 C366.25179494 418.40706007 366.10493586 379.3986397 357.625 343.125 C353.89688263 327.93920001 348.46127059 313.78494123 342.11572266 299.51464844 C341.11898253 297.26816632 340.14224455 295.01408676 339.16796875 292.7578125 C327.68339636 266.74148259 310.79319346 243.04993831 293 221 C292.30519531 220.11183594 291.61039062 219.22367188 290.89453125 218.30859375 C286.75063634 213.02326671 282.37426349 208.03287505 277.78515625 203.12890625 C275.41845994 200.54599766 273.26903045 197.81946268 271.09375 195.07421875 C265.61545138 188.34195432 259.53307139 182.26694196 253.37036133 176.16455078 C251.4318244 174.24437817 249.50151789 172.31621544 247.57226562 170.38671875 C242.07954798 164.9098949 236.59716338 159.47451151 230.68481445 154.44628906 C228.39400086 152.47979439 226.21891832 150.4016935 224.03125 148.32202148 C218.33524153 142.91568326 212.48497052 137.87907452 206.25585938 133.09912109 C202.00298444 129.82630812 197.92124769 126.39918712 193.875 122.875 C188.36721144 118.10047453 182.70019997 113.65035011 176.81591797 109.34326172 C174.68760213 107.76891462 172.57996486 106.16876175 170.47265625 104.56640625 C159.20995732 96.01653905 147.74575295 87.87027314 136 80 C134.58364258 79.04625488 134.58364258 79.04625488 133.13867188 78.07324219 C107.64167805 60.9063737 81.61741366 44.98143989 54.95800781 29.69628906 C53.19335005 28.68433445 51.42941325 27.67111848 49.66699219 26.65527344 C39.82417011 20.98386507 29.78891212 15.71490872 19.68920898 10.51513672 C11.0369721 6.05645742 11.0369721 6.05645742 6.94140625 3.61328125 C4.12073959 1.75955482 4.12073959 1.75955482 1 2 Z " fill="#01713C" transform="translate(92,0)"/>
-      */
+        let gas_cc_carbon = (kwh_difference * mix[3] * 0.8) * intensityFactors[3];
+        let gas_oc_carbon = (kwh_difference * mix[3] * 0.2) * intensityFactors[4];
+        let gas_carbon = gas_cc_carbon + gas_oc_carbon;
+
+        let carbon_increase = bio_carbon + coal_carbon + gas_carbon + import_carbon;
+        this.total_carbon += carbon_increase;
+        this.old_current_kwh = current_kwh;
+      }
 
       return $`
-      <ha-card header="Carbon Produced Today">
+      <ha-card header="Carbon Produced Today (Estimate)">
         <div id="leaf-container">
           <svg width=300 height=300 class="leaf" viewBox="210 200 300 300" version="1.1" xmlns="http://www.w3.org/2000/svg">
             <path xmlns="http://www.w3.org/2000/svg" d="M0 0 C2.99973515 1.99982343 3.48908361 2.52605129 4.890625 5.59375 C6.98856186 10.01255439 9.34373646 14.24319849 11.75 18.5 C16.07905495 26.22714751 20.12143211 34.05849367 24.01904297 42.01025391 C25.03387528 44.06871169 26.06347319 46.11916954 27.09765625 48.16796875 C31.45453445 56.80181026 35.6463918 65.47413727 39.4375 74.375 C40.83517699 77.61761061 42.31181401 80.80423863 43.8125 84 C46.87126425 90.60088877 49.5914013 97.31007237 52.24560547 104.07958984 C53.50562238 107.28712805 54.7836968 110.487415 56.0625 113.6875 C56.31040283 114.30947266 56.55830566 114.93144531 56.8137207 115.57226562 C58.75088314 120.41804394 60.76598464 125.2279642 62.82421875 130.0234375 C64.38142171 133.96559249 65.68335901 137.97197416 67 142 C68.56519942 146.74410453 70.13445171 151.48685397 71.70629883 156.22875977 C72.19305542 157.69910596 72.67873592 159.16980884 73.16333008 160.64086914 C75.63458114 168.13992439 78.15938795 175.57006287 81.17114258 182.8737793 C82.42709264 186.0955964 83.27685976 189.33413882 84.125 192.6875 C86.52399907 202.0857861 86.52399907 202.0857861 89.5 211.3125 C90.53824232 214.37791729 91.30656605 217.35859908 91.875 220.54296875 C93.02856848 226.48351747 94.74496428 232.21352239 96.5 238 C98.49424999 244.57518408 100.31632376 251.07274022 101.58398438 257.82910156 C102.27824033 261.45194425 103.26365464 264.99384284 104.21875 268.5546875 C105.13421375 272.59188262 105.79242472 276.64470019 106.45556641 280.72998047 C106.99267817 283.95602307 107.57891945 287.16879993 108.18359375 290.3828125 C110.79022539 304.33771521 112.87894277 318.23515492 114.37890625 332.3515625 C114.83900049 336.68027657 115.42603954 340.95419921 116.125 345.25 C118.68283858 362.67304131 118.16205844 380.63174632 118.13037109 398.19384766 C118.12490112 401.81547022 118.13041184 405.4369744 118.13671875 409.05859375 C118.13605969 411.36718777 118.13478211 413.67578172 118.1328125 415.984375 C118.13483673 417.06434753 118.13686096 418.14432007 118.13894653 419.25701904 C118.13579437 420.24695862 118.13264221 421.23689819 118.12939453 422.25683594 C118.12820114 423.5629483 118.12820114 423.5629483 118.12698364 424.89544678 C118 427 118 427 117 429 C116.78082815 430.47007286 116.60712337 431.94705785 116.45703125 433.42578125 C113.98335876 456.1488222 109.99622894 478.53285128 102 500 C101.62875 501.08410156 101.2575 502.16820312 100.875 503.28515625 C99.04405036 508.59920149 96.8738516 513.1793457 94 518 C93.26967693 519.71697124 92.5397706 521.43412553 91.81469727 523.15332031 C83.22270288 542.62885089 68.27291889 559.51027505 53.89453125 574.88671875 C51.44445538 577.50889751 49.0592988 580.18160136 46.6875 582.875 C38.1084787 592.44029564 28.97183728 601.87806186 19 610 C18.46407227 610.43908691 17.92814453 610.87817383 17.37597656 611.33056641 C9.79608285 617.52625305 2.19081168 623.62341105 -6 629 C-6.69673828 629.45938965 -7.39347656 629.9187793 -8.11132812 630.39208984 C-10.56635468 632.00301159 -13.03152187 633.59727638 -15.5 635.1875 C-16.28342773 635.69925781 -17.06685547 636.21101562 -17.87402344 636.73828125 C-23.36972711 640.23575531 -28.90517035 642.73439941 -35 645 C-36.62698915 645.66179737 -38.25224375 646.3278902 -39.875 647 C-54.89880952 653 -54.89880952 653 -60 653 C-59.94465088 653.88558594 -59.88930176 654.77117188 -59.83227539 655.68359375 C-58.79882812 672.21875 -58.79882812 672.21875 -58.66752625 674.32418823 C-58.57878213 675.74100468 -58.48926553 677.15777294 -58.39900208 678.57449341 C-58.17272938 682.14121286 -57.95960319 685.70776345 -57.77416992 689.27685547 C-57.37785013 696.68183458 -56.77212371 703.87282762 -55.1875 711.125 C-55.00864258 711.96844971 -54.82978516 712.81189941 -54.64550781 713.6809082 C-54.11599311 716.12537702 -53.56391997 718.56326392 -53 721 C-52.71253906 722.24910156 -52.42507813 723.49820313 -52.12890625 724.78515625 C-49.00730242 736.86923153 -43.9779316 748.82328126 -36 758.4921875 C-35 760 -35 760 -34.9375 762.875 C-36 765 -36 765 -39 767 C-45.97876177 767.83745141 -51.49886157 765.54988573 -57.0703125 761.4921875 C-59.14431584 759.74351802 -61.07618102 757.91232206 -63 756 C-63.97066406 755.08154297 -63.97066406 755.08154297 -64.9609375 754.14453125 C-84.25903357 734.42691135 -89.22840448 702.80230598 -92.25 676.625 C-92.3310498 675.92584473 -92.41209961 675.22668945 -92.49560547 674.50634766 C-92.89767539 670.55585116 -93.00764168 666.70501151 -92.9140625 662.734375 C-92.42744681 653.31704577 -92.42744681 653.31704577 -96.37890625 645.2421875 C-99.49432972 643.21298447 -102.65410652 641.6148444 -106 640 C-107.74922044 638.74250771 -109.46072398 637.43043434 -111.125 636.0625 C-111.93582031 635.39734375 -112.74664062 634.7321875 -113.58203125 634.046875 C-117.81761764 630.46133821 -121.95139135 626.79593787 -126 623 C-126.49902832 622.5349707 -126.99805664 622.06994141 -127.51220703 621.59082031 C-150.66635765 599.84146417 -166.92515794 571.01698548 -174 540 C-174.29197266 538.77482666 -174.29197266 538.77482666 -174.58984375 537.52490234 C-182.45769298 502.79451887 -179.95397192 464.46788826 -172 430 C-171.67026042 428.54218881 -171.3406733 427.08434312 -171.01123047 425.62646484 C-168.07810801 412.75713953 -164.9929242 400.10713383 -160.09106445 387.81835938 C-158.82111383 384.53791409 -157.93150661 381.3589172 -157.125 377.9375 C-150.12950666 350.76056359 -138.13733953 324.67849834 -127 299 C-126.57315918 298.01547852 -126.14631836 297.03095703 -125.70654297 296.01660156 C-124.24624518 292.65497309 -122.78006678 289.29596088 -121.3125 285.9375 C-120.8366748 284.84219971 -120.36084961 283.74689941 -119.87060547 282.6184082 C-119.41443848 281.57773193 -118.95827148 280.53705566 -118.48828125 279.46484375 C-118.08134033 278.532771 -117.67439941 277.60069824 -117.25512695 276.64038086 C-115.98965876 273.97824538 -114.5334567 271.51492214 -113 269 C-112.31899962 267.38942117 -111.67246854 265.76379959 -111.0625 264.125 C-109.8877701 261.09660886 -108.67975545 258.27983058 -107 255.5 C-105.3910522 252.83089279 -104.23347263 250.16317601 -103.125 247.25 C-101.26906701 242.43044278 -98.90335944 238.03361795 -96.37890625 233.53515625 C-95.25044142 231.46044329 -94.26817184 229.43168203 -93.375 227.25 C-92.12802209 224.30259767 -90.7273879 221.6880669 -89.0625 218.96875 C-87.82324062 216.67247527 -86.84177605 214.29077994 -85.82064819 211.89172363 C-83.48978003 206.51870457 -80.86050821 201.27298916 -78.3125 196 C-77.99941895 195.35104767 -77.68633789 194.70209534 -77.36376953 194.03347778 C-73.30280238 185.62446346 -69.14464825 177.290741 -64.67578125 169.08984375 C-61.30716576 162.87871356 -58.03466313 156.58727244 -55.3125 150.0625 C-54 147 -54 147 -52.5625 144.6875 C-51.16013621 142.27543428 -50.18719332 140.03174546 -49.1875 137.4375 C-47.66067745 133.50052079 -45.92127564 129.76028003 -44 126 C-41.81621813 121.70848836 -39.91685256 117.42527386 -38.18359375 112.9375 C-36.61315978 109.03992131 -34.90193027 105.21100246 -33.1875 101.375 C-32.84033936 100.59543945 -32.49317871 99.81587891 -32.13549805 99.01269531 C-30.49411179 95.33047207 -28.8434236 91.65300354 -27.171875 87.984375 C-23.48757901 79.82482166 -20.32733556 71.58028473 -17.48413086 63.08837891 C-16.15728322 59.15392101 -14.74623142 55.36134386 -12.98828125 51.59765625 C-10.67107634 46.5124781 -9.27085747 41.27379266 -7.875 35.875 C-7.37267982 33.97648734 -6.87008193 32.07804813 -6.3671875 30.1796875 C-6.13346436 29.28378906 -5.89974121 28.38789062 -5.65893555 27.46484375 C-5.10711 25.40066044 -4.50306718 23.35053177 -3.88671875 21.3046875 C-2.89916212 17.62419011 -2.38940329 14.0323166 -1.9375 10.25 C-1.09984399 3.29953198 -1.09984399 3.29953198 0 0 Z " fill="#84AA54" transform="translate(390,35)"/>
           </svg>
         </div>
         <div class="carbon">
-          ${Math.round(bio_carbon + coal_carbon + gas_carbon + import_carbon)} gCO₂
+          ${Math.round(this.total_carbon)} gCO₂
         </div>
       </ha-card>
     `
     }
-
-    static styles = r$2`
-    .carbon {
-      font-size: 20px;
-      margin: 0px auto auto;
-      width: 300px;
-      height: 140px;
-      background: none;
-      position: relative;
-
-      text-align: center;
-      vertical-align: middle;
-      line-height: 100px;
-      z-index: 2;
-      color: black;
-    }
-
-    .leaf {
-      border: 0px solid white;
-      width: 110px;
-      height: 300px;
-      display: block;
-      margin-top: -100px;
-      margin-left: auto;
-      margin-right: auto;
-      position: absolute;
-      z-index: 1;
-      transform: rotate(90deg);
-      left: 40%;
-    }
-
-    #leaf-container {
-      margin: auto;
-    }
-  `;
   }
 
-  customElements.define(pkg.name, Card);
+  class PriceCard extends s {
+
+    data_ur = [];
+    data_sc = [];
+    isChartActive = false;
+
+    static get properties() {
+      return {
+        hass: { type: Object },
+        config: { type: Object },
+      };
+    }
+
+    constructor() {
+      super();
+      this.chart = {};
+
+      // Set chart defaults
+      Chart.defaults.title = {
+        fontSize: 14,
+        fontStyle: 'normal',
+      };
+      Chart.defaults.color = '#fff';
+    }
+
+    getCardSize() {
+      return 8
+    }
+
+    setConfig(config) {
+      this.config = config;
+    }
+
+    firstUpdated() {
+      const ctx = this.renderRoot.querySelector('canvas').getContext('2d');
+      this.chart = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+          datasets: [{
+            label: "Unit rate",
+            data: this.data_ur,
+            backgroundColor: '#afe65a',
+            borderColor: '#afe65a',
+            pointRadius: 1,
+            borderWidth: 1,
+            showLine: true,
+            tension: 0.2
+          }, {
+            label: "Standing Charge",
+            data: this.data_sc,
+            backgroundColor: '#afe65a',
+            borderColor: '#afe65a',
+            pointRadius: 1,
+            borderWidth: 1,
+            showLine: true,
+            tension: 0.2
+          }]
+        },
+        options: {
+          //responsive: true,
+          //borderWidth: 1,
+          //animation: {
+          //  duration: 0
+          //},
+          scales: {
+            x: {
+              type: 'time',
+              position: 'bottom'
+            }
+          }
+        }
+      });
+
+      this.subscribeHistory();
+    }
+
+    handleHistoryData(message) {
+      let values_ur = message.states["sensor.smart_meter_electricity_import_unit_rate"];
+      let values_sc = message.states["sensor.smart_meter_electricity_import_standing_charge"];
+
+      let i = 0;
+      while (i < values_ur.length) {
+        this.data_ur.push({ x: new Date(values_ur[i].lu * 1000), y: values_ur[i].s });
+        ++i;
+      }
+
+      let j = 0;
+      while (j < values_sc.length) {
+        this.data_sc.push({ x: new Date(values_sc[j].lu * 1000), y: values_sc[j].s });
+        ++j;
+      }
+
+      console.log(this.data_ur);
+      console.log(this.data_sc);
+      this.chart.update();
+      this.isChartActive = true;
+    }
+
+    subscribeHistory() {
+      var midnight = new Date();
+      midnight.setHours(0, 0, 0, 0);
+
+      var future = new Date();
+      future.setFullYear(future.getFullYear() + 1);
+
+      const params = {
+        type: "history/stream",
+        entity_ids: [
+          "sensor.smart_meter_electricity_import_unit_rate",
+          "sensor.smart_meter_electricity_import_standing_charge"
+        ],
+        start_time: midnight,
+        end_time: future,
+        minimal_response: true
+      };
+      return this.hass.connection.subscribeMessage(
+        (message) => this.handleHistoryData(message),
+        params
+      );
+    };
+
+    static styles = r$2`
+    .price-container {
+      padding: 20px;
+    }
+
+    .chart-container: {
+      padding: 20px;
+    }
+  `;
+
+    static styles = r$2`
+    .chart-container {
+      padding: 20px;
+      margin-top: -20px;
+    }
+  `;
+
+    render() {
+      if (this.isChartActive) {
+        this.chart.data.datasets[0].data.push({
+          x: new Date(),
+          y: this.hass.states["sensor.smart_meter_electricity_import_unit_rate"]
+        });
+        this.chart.data.datasets[1].data.push({
+          x: new Date(),
+          y: this.hass.states["sensor.smart_meter_electricity_import_standing_charge"]
+        });
+        this.chart.update();
+        console.log(this.chart.data);
+      }
+
+      return $`
+      <ha-card>
+        <div class="chart-container">
+          <canvas id="price-canvas"></canvas>
+        </div>
+        <div class="price-container">
+          <div>
+            Unit Rate: ${this.hass.states["sensor.smart_meter_electricity_import_unit_rate"].state}
+          </div>
+          <div>
+            Standing Charge: ${this.hass.states["sensor.smart_meter_electricity_import_standing_charge"].state}
+          </div>
+        </div>
+      </ha-card>
+    `;
+    }
+  }
+
+  class PowerCard extends s {
+
+    power_data = [];
+
+    static get properties() {
+      return {
+        hass: { type: Object },
+        config: { type: Object },
+      };
+    }
+
+    constructor() {
+      super();
+      this.chart = {};
+
+      // Set chart defaults
+      Chart.defaults.title = {
+        fontSize: 14,
+        fontStyle: 'normal',
+      };
+      Chart.defaults.color = '#fff';
+    }
+
+    setConfig(config) {
+      this.config = config;
+    }
+
+    firstUpdated() {
+      const ctx = this.renderRoot.querySelector('canvas').getContext('2d');
+      this.chart = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+          datasets: [{
+            label: "Power Levels",
+            data: this.power_data,
+            backgroundColor: "#afe65a",
+            borderColor: "#afe65a",
+            pointRadius: 0,
+            borderWidth: 1,
+            showLine: true,
+            tension: 0.2
+          }]
+        },
+        options: {
+          //responsive: true,
+          //borderWidth: 1,
+          plugins: {
+            legend: {
+              display: false,
+            }
+          },
+          scales: {
+            x: {
+              type: 'time',
+              position: 'bottom',
+              ticks: {
+                autoSkip: true,
+                maxTicksLimit: 13
+              }
+              //time: {
+              //  unit: 'minute'
+              //}
+            }
+          },
+          //animation: {
+          //  duration: 0
+          //}
+        }
+      });
+
+      this.subscribeHistory();
+    }
+
+    getCardSize() {
+      return 12
+    }
+
+    handleHistoryData(message) {
+      let values = message.states["sensor.smart_meter_electricity_power"];
+
+      let i = 0;
+      while (i < values.length) {
+        this.power_data.push({
+          x: new Date(values[i].lu * 1000),
+          y: values[i].s
+        });
+        ++i;
+      }
+
+      while (this.power_data.length > 100) {
+        this.power_data.shift();
+      }
+
+      //let j = 0;
+      //while (j < this.power_data.length) {
+      //  if (this.power_data[j].x.getHours() === currentDate.getHours() - 2) {
+      //    this.power_data.splice(0, j);
+      //  }
+      //  ++j;
+      //}
+
+      console.log(this.power_data);
+      this.chart.update();
+    }
+
+    subscribeHistory() {
+      var midnight = new Date();
+      midnight.setHours(0, 0, 0, 0);
+
+      var future = new Date();
+      future.setFullYear(future.getFullYear() + 1);
+
+      const params = {
+        type: "history/stream",
+        entity_ids: [
+          "sensor.smart_meter_electricity_power",
+        ],
+        start_time: midnight,
+        end_time: future,
+        minimal_response: true
+      };
+      return this.hass.connection.subscribeMessage(
+        (message) => this.handleHistoryData(message),
+        params
+      );
+    };
+
+    static styles = r$2`
+    .power-container {
+      padding: 20px;
+      margin: auto;
+      width: 200px;
+    }
+
+    .chart-container {
+      padding: 20px;
+      margin-top: -20px;
+    }
+
+    .label {
+      font-size: 20px;
+    }
+  `;
+
+    render() {
+      return $`
+      <ha-card header="Power Utilization">
+        <div class="power-container">
+          <div class="label">
+            Current: ${this.hass.states["sensor.smart_meter_electricity_power"].state} kW
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="price-canvas"></canvas>
+        </div>
+      </ha-card>
+    `;
+    }
+  }
+
+  customElements.define(pkg.name, MixCard);
+  customElements.define("consumption-card", IntensityCard);
+  customElements.define("carbon-card", CarbonCard);
+  customElements.define("price-card", PriceCard);
+  customElements.define("power-card", PowerCard);
+  customElements.define("title-card", TitleCard);
+  customElements.define("spacer-card", SpacerCard);
+
   window.customCards = window.customCards || [];
+
   window.customCards.push({
       type: "chartjs-card",
       name: "Energy Mix Data",
       description: "Display data about the current energy mix",
   });
-
-  customElements.define("consumption-card", ConsumptionCard);
-  window.customCards = window.customCards || [];
   window.customCards.push({
       type: "consumption-card",
       name: "Energy Consumption Data",
       description: "Display data about the current energy Consumption",
   });
-
-  customElements.define("carbon-card", CarbonCard);
-  window.customCards = window.customCards || [];
   window.customCards.push({
-      type: "carbon",
+      type: "carbon-card",
       name: "Amount of Carbon Released",
       description: "Display data about the carbon released",
+  });
+  window.customCards.push({
+    type: "price-card",
+    name: "Current Standing Charge and Unit Rate",
+    description: "Display the current standing charge and unit rate for energy"
+  });
+  window.customCards.push({
+    type: "power-card",
+    name: "Current Power Level",
+    description: "Display the current power level"
+  });
+  window.customCards.push({
+    type: "title-card",
+    name: "Title Card",
+    description: "Title Card"
+  });
+  window.customCards.push({
+    type: "spacer-card",
+    name: "Spacer Card",
+    description: "Spacer Card"
   });
 
 }));

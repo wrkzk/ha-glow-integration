@@ -6,8 +6,13 @@ class GlowStrategy {
                 {
                     "cards": [
                         {
-                            "type": "markdown",
-                            "content": `This is test content`
+                            "type": "custom:spacer-card"
+                        },
+                        {
+                            "type": "custom:title-card"
+                        },
+                        {
+                            "type": "custom:spacer-card"
                         },
                         {
                             "type": "custom:carbon-card"
@@ -17,6 +22,12 @@ class GlowStrategy {
                         },
                         {
                             "type": "custom:chartjs-card"
+                        },
+                        {
+                            "type": "custom:price-card"
+                        },
+                        {
+                            "type": "custom:power-card"
                         }
                     ]
                 }
