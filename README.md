@@ -11,5 +11,6 @@ This integration exposes sensor entities that fetch data via MQTT from your smar
 - MQTT Integration installed and configured to point to the Mosquitto Broker (see [here](https://www.home-assistant.io/integrations/mqtt/))
 
 ## 2. Set up HACS
+Follow the steps outline on the [HACS installation page](https://hacs.xyz/docs/setup/prerequisites). You first need to enable advanced mode by turning on **Profile > User settings > Advanced mode**. Second, install an ssh addon, so that you can get terminal access through Home Assitant. Then run the script shown on the HACS installation page- be sure to use the OS/Supervised script.
 
 ## 3. Add custom HACS repository
