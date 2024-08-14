@@ -13,7 +13,7 @@
   	"home-assistant"
   ];
   const dependencies = {
-  	"chart.js": "^3.7.0",
+  	"chart.js": "^3.9.1",
   	"chartjs-adapter-date-fns": "^3.0.0",
   	"chartjs-plugin-annotation": "^1.2.2",
   	"chartjs-plugin-zoom": "^1.2.0",
@@ -52,53 +52,11 @@
   };
 
   /*!
-   * Chart.js v3.7.0
+   * Chart.js v3.9.1
    * https://www.chartjs.org
-   * (c) 2021 Chart.js Contributors
+   * (c) 2022 Chart.js Contributors
    * Released under the MIT License
    */
-  const requestAnimFrame = (function() {
-    if (typeof window === 'undefined') {
-      return function(callback) {
-        return callback();
-      };
-    }
-    return window.requestAnimationFrame;
-  }());
-  function throttled(fn, thisArg, updateFn) {
-    const updateArgs = updateFn || ((args) => Array.prototype.slice.call(args));
-    let ticking = false;
-    let args = [];
-    return function(...rest) {
-      args = updateArgs(rest);
-      if (!ticking) {
-        ticking = true;
-        requestAnimFrame.call(window, () => {
-          ticking = false;
-          fn.apply(thisArg, args);
-        });
-      }
-    };
-  }
-  function debounce(fn, delay) {
-    let timeout;
-    return function(...args) {
-      if (delay) {
-        clearTimeout(timeout);
-        timeout = setTimeout(fn, delay, args);
-      } else {
-        fn.apply(this, args);
-      }
-      return delay;
-    };
-  }
-  const _toLeftRightCenter = (align) => align === 'start' ? 'left' : align === 'end' ? 'right' : 'center';
-  const _alignStartEnd = (align, start, end) => align === 'start' ? start : align === 'end' ? end : (start + end) / 2;
-  const _textX = (align, left, right, rtl) => {
-    const check = rtl ? 'left' : 'right';
-    return align === check ? right : align === 'center' ? (left + right) / 2 : left;
-  };
-
   function noop() {}
   const uid = (function() {
     let id = 0;
@@ -114,7 +72,7 @@
       return true;
     }
     const type = Object.prototype.toString.call(value);
-    if (type.substr(0, 7) === '[object' && type.substr(-6) === 'Array]') {
+    if (type.slice(0, 7) === '[object' && type.slice(-6) === 'Array]') {
       return true;
     }
     return false;
@@ -243,24 +201,41 @@
       target[key] = clone$1(sval);
     }
   }
-  const emptyString = '';
-  const dot = '.';
-  function indexOfDotOrLength(key, start) {
-    const idx = key.indexOf(dot, start);
-    return idx === -1 ? key.length : idx;
-  }
+  const keyResolvers = {
+    '': v => v,
+    x: o => o.x,
+    y: o => o.y
+  };
   function resolveObjectKey(obj, key) {
-    if (key === emptyString) {
+    const resolver = keyResolvers[key] || (keyResolvers[key] = _getKeyResolver(key));
+    return resolver(obj);
+  }
+  function _getKeyResolver(key) {
+    const keys = _splitKey(key);
+    return obj => {
+      for (const k of keys) {
+        if (k === '') {
+          break;
+        }
+        obj = obj && obj[k];
+      }
       return obj;
+    };
+  }
+  function _splitKey(key) {
+    const parts = key.split('.');
+    const keys = [];
+    let tmp = '';
+    for (const part of parts) {
+      tmp += part;
+      if (tmp.endsWith('\\')) {
+        tmp = tmp.slice(0, -1) + '.';
+      } else {
+        keys.push(tmp);
+        tmp = '';
+      }
     }
-    let pos = 0;
-    let idx = indexOfDotOrLength(key, pos);
-    while (obj && idx > pos) {
-      obj = obj[key.substr(pos, idx - pos)];
-      pos = idx + 1;
-      idx = indexOfDotOrLength(key, pos);
-    }
-    return obj;
+    return keys;
   }
   function _capitalize(str) {
     return str.charAt(0).toUpperCase() + str.slice(1);
@@ -397,6 +372,186 @@
     return value >= Math.min(start, end) - epsilon && value <= Math.max(start, end) + epsilon;
   }
 
+  function _lookup(table, value, cmp) {
+    cmp = cmp || ((index) => table[index] < value);
+    let hi = table.length - 1;
+    let lo = 0;
+    let mid;
+    while (hi - lo > 1) {
+      mid = (lo + hi) >> 1;
+      if (cmp(mid)) {
+        lo = mid;
+      } else {
+        hi = mid;
+      }
+    }
+    return {lo, hi};
+  }
+  const _lookupByKey = (table, key, value, last) =>
+    _lookup(table, value, last
+      ? index => table[index][key] <= value
+      : index => table[index][key] < value);
+  const _rlookupByKey = (table, key, value) =>
+    _lookup(table, value, index => table[index][key] >= value);
+  function _filterBetween(values, min, max) {
+    let start = 0;
+    let end = values.length;
+    while (start < end && values[start] < min) {
+      start++;
+    }
+    while (end > start && values[end - 1] > max) {
+      end--;
+    }
+    return start > 0 || end < values.length
+      ? values.slice(start, end)
+      : values;
+  }
+  const arrayEvents = ['push', 'pop', 'shift', 'splice', 'unshift'];
+  function listenArrayEvents(array, listener) {
+    if (array._chartjs) {
+      array._chartjs.listeners.push(listener);
+      return;
+    }
+    Object.defineProperty(array, '_chartjs', {
+      configurable: true,
+      enumerable: false,
+      value: {
+        listeners: [listener]
+      }
+    });
+    arrayEvents.forEach((key) => {
+      const method = '_onData' + _capitalize(key);
+      const base = array[key];
+      Object.defineProperty(array, key, {
+        configurable: true,
+        enumerable: false,
+        value(...args) {
+          const res = base.apply(this, args);
+          array._chartjs.listeners.forEach((object) => {
+            if (typeof object[method] === 'function') {
+              object[method](...args);
+            }
+          });
+          return res;
+        }
+      });
+    });
+  }
+  function unlistenArrayEvents(array, listener) {
+    const stub = array._chartjs;
+    if (!stub) {
+      return;
+    }
+    const listeners = stub.listeners;
+    const index = listeners.indexOf(listener);
+    if (index !== -1) {
+      listeners.splice(index, 1);
+    }
+    if (listeners.length > 0) {
+      return;
+    }
+    arrayEvents.forEach((key) => {
+      delete array[key];
+    });
+    delete array._chartjs;
+  }
+  function _arrayUnique(items) {
+    const set = new Set();
+    let i, ilen;
+    for (i = 0, ilen = items.length; i < ilen; ++i) {
+      set.add(items[i]);
+    }
+    if (set.size === ilen) {
+      return items;
+    }
+    return Array.from(set);
+  }
+  const requestAnimFrame = (function() {
+    if (typeof window === 'undefined') {
+      return function(callback) {
+        return callback();
+      };
+    }
+    return window.requestAnimationFrame;
+  }());
+  function throttled(fn, thisArg, updateFn) {
+    const updateArgs = updateFn || ((args) => Array.prototype.slice.call(args));
+    let ticking = false;
+    let args = [];
+    return function(...rest) {
+      args = updateArgs(rest);
+      if (!ticking) {
+        ticking = true;
+        requestAnimFrame.call(window, () => {
+          ticking = false;
+          fn.apply(thisArg, args);
+        });
+      }
+    };
+  }
+  function debounce(fn, delay) {
+    let timeout;
+    return function(...args) {
+      if (delay) {
+        clearTimeout(timeout);
+        timeout = setTimeout(fn, delay, args);
+      } else {
+        fn.apply(this, args);
+      }
+      return delay;
+    };
+  }
+  const _toLeftRightCenter = (align) => align === 'start' ? 'left' : align === 'end' ? 'right' : 'center';
+  const _alignStartEnd = (align, start, end) => align === 'start' ? start : align === 'end' ? end : (start + end) / 2;
+  const _textX = (align, left, right, rtl) => {
+    const check = rtl ? 'left' : 'right';
+    return align === check ? right : align === 'center' ? (left + right) / 2 : left;
+  };
+  function _getStartAndCountOfVisiblePoints(meta, points, animationsDisabled) {
+    const pointCount = points.length;
+    let start = 0;
+    let count = pointCount;
+    if (meta._sorted) {
+      const {iScale, _parsed} = meta;
+      const axis = iScale.axis;
+      const {min, max, minDefined, maxDefined} = iScale.getUserBounds();
+      if (minDefined) {
+        start = _limitValue(Math.min(
+          _lookupByKey(_parsed, iScale.axis, min).lo,
+          animationsDisabled ? pointCount : _lookupByKey(points, axis, iScale.getPixelForValue(min)).lo),
+        0, pointCount - 1);
+      }
+      if (maxDefined) {
+        count = _limitValue(Math.max(
+          _lookupByKey(_parsed, iScale.axis, max, true).hi + 1,
+          animationsDisabled ? 0 : _lookupByKey(points, axis, iScale.getPixelForValue(max), true).hi + 1),
+        start, pointCount) - start;
+      } else {
+        count = pointCount - start;
+      }
+    }
+    return {start, count};
+  }
+  function _scaleRangesChanged(meta) {
+    const {xScale, yScale, _scaleRanges} = meta;
+    const newRanges = {
+      xmin: xScale.min,
+      xmax: xScale.max,
+      ymin: yScale.min,
+      ymax: yScale.max
+    };
+    if (!_scaleRanges) {
+      meta._scaleRanges = newRanges;
+      return true;
+    }
+    const changed = _scaleRanges.xmin !== xScale.min
+  		|| _scaleRanges.xmax !== xScale.max
+  		|| _scaleRanges.ymin !== yScale.min
+  		|| _scaleRanges.ymax !== yScale.max;
+    Object.assign(_scaleRanges, newRanges);
+    return changed;
+  }
+
   const atEdge = (t) => t === 0 || t === 1;
   const elasticIn = (t, s, p) => -(Math.pow(2, 10 * (t -= 1)) * Math.sin((t - s) * TAU / p));
   const elasticOut = (t, s, p) => Math.pow(2, -10 * t) * Math.sin((t - s) * TAU / p) + 1;
@@ -481,561 +636,589 @@
   };
 
   /*!
-   * @kurkle/color v0.1.9
+   * @kurkle/color v0.2.1
    * https://github.com/kurkle/color#readme
-   * (c) 2020 Jukka Kurkela
+   * (c) 2022 Jukka Kurkela
    * Released under the MIT License
    */
-  const map$1 = {0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, A: 10, B: 11, C: 12, D: 13, E: 14, F: 15, a: 10, b: 11, c: 12, d: 13, e: 14, f: 15};
-  const hex = '0123456789ABCDEF';
-  const h1 = (b) => hex[b & 0xF];
-  const h2 = (b) => hex[(b & 0xF0) >> 4] + hex[b & 0xF];
-  const eq = (b) => (((b & 0xF0) >> 4) === (b & 0xF));
-  function isShort(v) {
-  	return eq(v.r) && eq(v.g) && eq(v.b) && eq(v.a);
-  }
-  function hexParse(str) {
-  	var len = str.length;
-  	var ret;
-  	if (str[0] === '#') {
-  		if (len === 4 || len === 5) {
-  			ret = {
-  				r: 255 & map$1[str[1]] * 17,
-  				g: 255 & map$1[str[2]] * 17,
-  				b: 255 & map$1[str[3]] * 17,
-  				a: len === 5 ? map$1[str[4]] * 17 : 255
-  			};
-  		} else if (len === 7 || len === 9) {
-  			ret = {
-  				r: map$1[str[1]] << 4 | map$1[str[2]],
-  				g: map$1[str[3]] << 4 | map$1[str[4]],
-  				b: map$1[str[5]] << 4 | map$1[str[6]],
-  				a: len === 9 ? (map$1[str[7]] << 4 | map$1[str[8]]) : 255
-  			};
-  		}
-  	}
-  	return ret;
-  }
-  function hexString(v) {
-  	var f = isShort(v) ? h1 : h2;
-  	return v
-  		? '#' + f(v.r) + f(v.g) + f(v.b) + (v.a < 255 ? f(v.a) : '')
-  		: v;
-  }
   function round(v) {
-  	return v + 0.5 | 0;
+    return v + 0.5 | 0;
   }
   const lim = (v, l, h) => Math.max(Math.min(v, h), l);
   function p2b(v) {
-  	return lim(round(v * 2.55), 0, 255);
+    return lim(round(v * 2.55), 0, 255);
   }
   function n2b(v) {
-  	return lim(round(v * 255), 0, 255);
+    return lim(round(v * 255), 0, 255);
   }
   function b2n(v) {
-  	return lim(round(v / 2.55) / 100, 0, 1);
+    return lim(round(v / 2.55) / 100, 0, 1);
   }
   function n2p(v) {
-  	return lim(round(v * 100), 0, 100);
+    return lim(round(v * 100), 0, 100);
   }
-  const RGB_RE = /^rgba?\(\s*([-+.\d]+)(%)?[\s,]+([-+.e\d]+)(%)?[\s,]+([-+.e\d]+)(%)?(?:[\s,/]+([-+.e\d]+)(%)?)?\s*\)$/;
-  function rgbParse(str) {
-  	const m = RGB_RE.exec(str);
-  	let a = 255;
-  	let r, g, b;
-  	if (!m) {
-  		return;
-  	}
-  	if (m[7] !== r) {
-  		const v = +m[7];
-  		a = 255 & (m[8] ? p2b(v) : v * 255);
-  	}
-  	r = +m[1];
-  	g = +m[3];
-  	b = +m[5];
-  	r = 255 & (m[2] ? p2b(r) : r);
-  	g = 255 & (m[4] ? p2b(g) : g);
-  	b = 255 & (m[6] ? p2b(b) : b);
-  	return {
-  		r: r,
-  		g: g,
-  		b: b,
-  		a: a
-  	};
+  const map$1 = {0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, A: 10, B: 11, C: 12, D: 13, E: 14, F: 15, a: 10, b: 11, c: 12, d: 13, e: 14, f: 15};
+  const hex = [...'0123456789ABCDEF'];
+  const h1 = b => hex[b & 0xF];
+  const h2 = b => hex[(b & 0xF0) >> 4] + hex[b & 0xF];
+  const eq = b => ((b & 0xF0) >> 4) === (b & 0xF);
+  const isShort = v => eq(v.r) && eq(v.g) && eq(v.b) && eq(v.a);
+  function hexParse(str) {
+    var len = str.length;
+    var ret;
+    if (str[0] === '#') {
+      if (len === 4 || len === 5) {
+        ret = {
+          r: 255 & map$1[str[1]] * 17,
+          g: 255 & map$1[str[2]] * 17,
+          b: 255 & map$1[str[3]] * 17,
+          a: len === 5 ? map$1[str[4]] * 17 : 255
+        };
+      } else if (len === 7 || len === 9) {
+        ret = {
+          r: map$1[str[1]] << 4 | map$1[str[2]],
+          g: map$1[str[3]] << 4 | map$1[str[4]],
+          b: map$1[str[5]] << 4 | map$1[str[6]],
+          a: len === 9 ? (map$1[str[7]] << 4 | map$1[str[8]]) : 255
+        };
+      }
+    }
+    return ret;
   }
-  function rgbString(v) {
-  	return v && (
-  		v.a < 255
-  			? `rgba(${v.r}, ${v.g}, ${v.b}, ${b2n(v.a)})`
-  			: `rgb(${v.r}, ${v.g}, ${v.b})`
-  	);
+  const alpha = (a, f) => a < 255 ? f(a) : '';
+  function hexString(v) {
+    var f = isShort(v) ? h1 : h2;
+    return v
+      ? '#' + f(v.r) + f(v.g) + f(v.b) + alpha(v.a, f)
+      : undefined;
   }
   const HUE_RE = /^(hsla?|hwb|hsv)\(\s*([-+.e\d]+)(?:deg)?[\s,]+([-+.e\d]+)%[\s,]+([-+.e\d]+)%(?:[\s,]+([-+.e\d]+)(%)?)?\s*\)$/;
   function hsl2rgbn(h, s, l) {
-  	const a = s * Math.min(l, 1 - l);
-  	const f = (n, k = (n + h / 30) % 12) => l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
-  	return [f(0), f(8), f(4)];
+    const a = s * Math.min(l, 1 - l);
+    const f = (n, k = (n + h / 30) % 12) => l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    return [f(0), f(8), f(4)];
   }
   function hsv2rgbn(h, s, v) {
-  	const f = (n, k = (n + h / 60) % 6) => v - v * s * Math.max(Math.min(k, 4 - k, 1), 0);
-  	return [f(5), f(3), f(1)];
+    const f = (n, k = (n + h / 60) % 6) => v - v * s * Math.max(Math.min(k, 4 - k, 1), 0);
+    return [f(5), f(3), f(1)];
   }
   function hwb2rgbn(h, w, b) {
-  	const rgb = hsl2rgbn(h, 1, 0.5);
-  	let i;
-  	if (w + b > 1) {
-  		i = 1 / (w + b);
-  		w *= i;
-  		b *= i;
-  	}
-  	for (i = 0; i < 3; i++) {
-  		rgb[i] *= 1 - w - b;
-  		rgb[i] += w;
-  	}
-  	return rgb;
+    const rgb = hsl2rgbn(h, 1, 0.5);
+    let i;
+    if (w + b > 1) {
+      i = 1 / (w + b);
+      w *= i;
+      b *= i;
+    }
+    for (i = 0; i < 3; i++) {
+      rgb[i] *= 1 - w - b;
+      rgb[i] += w;
+    }
+    return rgb;
+  }
+  function hueValue(r, g, b, d, max) {
+    if (r === max) {
+      return ((g - b) / d) + (g < b ? 6 : 0);
+    }
+    if (g === max) {
+      return (b - r) / d + 2;
+    }
+    return (r - g) / d + 4;
   }
   function rgb2hsl(v) {
-  	const range = 255;
-  	const r = v.r / range;
-  	const g = v.g / range;
-  	const b = v.b / range;
-  	const max = Math.max(r, g, b);
-  	const min = Math.min(r, g, b);
-  	const l = (max + min) / 2;
-  	let h, s, d;
-  	if (max !== min) {
-  		d = max - min;
-  		s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-  		h = max === r
-  			? ((g - b) / d) + (g < b ? 6 : 0)
-  			: max === g
-  				? (b - r) / d + 2
-  				: (r - g) / d + 4;
-  		h = h * 60 + 0.5;
-  	}
-  	return [h | 0, s || 0, l];
+    const range = 255;
+    const r = v.r / range;
+    const g = v.g / range;
+    const b = v.b / range;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const l = (max + min) / 2;
+    let h, s, d;
+    if (max !== min) {
+      d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      h = hueValue(r, g, b, d, max);
+      h = h * 60 + 0.5;
+    }
+    return [h | 0, s || 0, l];
   }
   function calln(f, a, b, c) {
-  	return (
-  		Array.isArray(a)
-  			? f(a[0], a[1], a[2])
-  			: f(a, b, c)
-  	).map(n2b);
+    return (
+      Array.isArray(a)
+        ? f(a[0], a[1], a[2])
+        : f(a, b, c)
+    ).map(n2b);
   }
   function hsl2rgb(h, s, l) {
-  	return calln(hsl2rgbn, h, s, l);
+    return calln(hsl2rgbn, h, s, l);
   }
   function hwb2rgb(h, w, b) {
-  	return calln(hwb2rgbn, h, w, b);
+    return calln(hwb2rgbn, h, w, b);
   }
   function hsv2rgb(h, s, v) {
-  	return calln(hsv2rgbn, h, s, v);
+    return calln(hsv2rgbn, h, s, v);
   }
   function hue(h) {
-  	return (h % 360 + 360) % 360;
+    return (h % 360 + 360) % 360;
   }
   function hueParse(str) {
-  	const m = HUE_RE.exec(str);
-  	let a = 255;
-  	let v;
-  	if (!m) {
-  		return;
-  	}
-  	if (m[5] !== v) {
-  		a = m[6] ? p2b(+m[5]) : n2b(+m[5]);
-  	}
-  	const h = hue(+m[2]);
-  	const p1 = +m[3] / 100;
-  	const p2 = +m[4] / 100;
-  	if (m[1] === 'hwb') {
-  		v = hwb2rgb(h, p1, p2);
-  	} else if (m[1] === 'hsv') {
-  		v = hsv2rgb(h, p1, p2);
-  	} else {
-  		v = hsl2rgb(h, p1, p2);
-  	}
-  	return {
-  		r: v[0],
-  		g: v[1],
-  		b: v[2],
-  		a: a
-  	};
+    const m = HUE_RE.exec(str);
+    let a = 255;
+    let v;
+    if (!m) {
+      return;
+    }
+    if (m[5] !== v) {
+      a = m[6] ? p2b(+m[5]) : n2b(+m[5]);
+    }
+    const h = hue(+m[2]);
+    const p1 = +m[3] / 100;
+    const p2 = +m[4] / 100;
+    if (m[1] === 'hwb') {
+      v = hwb2rgb(h, p1, p2);
+    } else if (m[1] === 'hsv') {
+      v = hsv2rgb(h, p1, p2);
+    } else {
+      v = hsl2rgb(h, p1, p2);
+    }
+    return {
+      r: v[0],
+      g: v[1],
+      b: v[2],
+      a: a
+    };
   }
   function rotate(v, deg) {
-  	var h = rgb2hsl(v);
-  	h[0] = hue(h[0] + deg);
-  	h = hsl2rgb(h);
-  	v.r = h[0];
-  	v.g = h[1];
-  	v.b = h[2];
+    var h = rgb2hsl(v);
+    h[0] = hue(h[0] + deg);
+    h = hsl2rgb(h);
+    v.r = h[0];
+    v.g = h[1];
+    v.b = h[2];
   }
   function hslString(v) {
-  	if (!v) {
-  		return;
-  	}
-  	const a = rgb2hsl(v);
-  	const h = a[0];
-  	const s = n2p(a[1]);
-  	const l = n2p(a[2]);
-  	return v.a < 255
-  		? `hsla(${h}, ${s}%, ${l}%, ${b2n(v.a)})`
-  		: `hsl(${h}, ${s}%, ${l}%)`;
+    if (!v) {
+      return;
+    }
+    const a = rgb2hsl(v);
+    const h = a[0];
+    const s = n2p(a[1]);
+    const l = n2p(a[2]);
+    return v.a < 255
+      ? `hsla(${h}, ${s}%, ${l}%, ${b2n(v.a)})`
+      : `hsl(${h}, ${s}%, ${l}%)`;
   }
-  const map$1$1 = {
-  	x: 'dark',
-  	Z: 'light',
-  	Y: 're',
-  	X: 'blu',
-  	W: 'gr',
-  	V: 'medium',
-  	U: 'slate',
-  	A: 'ee',
-  	T: 'ol',
-  	S: 'or',
-  	B: 'ra',
-  	C: 'lateg',
-  	D: 'ights',
-  	R: 'in',
-  	Q: 'turquois',
-  	E: 'hi',
-  	P: 'ro',
-  	O: 'al',
-  	N: 'le',
-  	M: 'de',
-  	L: 'yello',
-  	F: 'en',
-  	K: 'ch',
-  	G: 'arks',
-  	H: 'ea',
-  	I: 'ightg',
-  	J: 'wh'
+  const map$2 = {
+    x: 'dark',
+    Z: 'light',
+    Y: 're',
+    X: 'blu',
+    W: 'gr',
+    V: 'medium',
+    U: 'slate',
+    A: 'ee',
+    T: 'ol',
+    S: 'or',
+    B: 'ra',
+    C: 'lateg',
+    D: 'ights',
+    R: 'in',
+    Q: 'turquois',
+    E: 'hi',
+    P: 'ro',
+    O: 'al',
+    N: 'le',
+    M: 'de',
+    L: 'yello',
+    F: 'en',
+    K: 'ch',
+    G: 'arks',
+    H: 'ea',
+    I: 'ightg',
+    J: 'wh'
   };
-  const names = {
-  	OiceXe: 'f0f8ff',
-  	antiquewEte: 'faebd7',
-  	aqua: 'ffff',
-  	aquamarRe: '7fffd4',
-  	azuY: 'f0ffff',
-  	beige: 'f5f5dc',
-  	bisque: 'ffe4c4',
-  	black: '0',
-  	blanKedOmond: 'ffebcd',
-  	Xe: 'ff',
-  	XeviTet: '8a2be2',
-  	bPwn: 'a52a2a',
-  	burlywood: 'deb887',
-  	caMtXe: '5f9ea0',
-  	KartYuse: '7fff00',
-  	KocTate: 'd2691e',
-  	cSO: 'ff7f50',
-  	cSnflowerXe: '6495ed',
-  	cSnsilk: 'fff8dc',
-  	crimson: 'dc143c',
-  	cyan: 'ffff',
-  	xXe: '8b',
-  	xcyan: '8b8b',
-  	xgTMnPd: 'b8860b',
-  	xWay: 'a9a9a9',
-  	xgYF: '6400',
-  	xgYy: 'a9a9a9',
-  	xkhaki: 'bdb76b',
-  	xmagFta: '8b008b',
-  	xTivegYF: '556b2f',
-  	xSange: 'ff8c00',
-  	xScEd: '9932cc',
-  	xYd: '8b0000',
-  	xsOmon: 'e9967a',
-  	xsHgYF: '8fbc8f',
-  	xUXe: '483d8b',
-  	xUWay: '2f4f4f',
-  	xUgYy: '2f4f4f',
-  	xQe: 'ced1',
-  	xviTet: '9400d3',
-  	dAppRk: 'ff1493',
-  	dApskyXe: 'bfff',
-  	dimWay: '696969',
-  	dimgYy: '696969',
-  	dodgerXe: '1e90ff',
-  	fiYbrick: 'b22222',
-  	flSOwEte: 'fffaf0',
-  	foYstWAn: '228b22',
-  	fuKsia: 'ff00ff',
-  	gaRsbSo: 'dcdcdc',
-  	ghostwEte: 'f8f8ff',
-  	gTd: 'ffd700',
-  	gTMnPd: 'daa520',
-  	Way: '808080',
-  	gYF: '8000',
-  	gYFLw: 'adff2f',
-  	gYy: '808080',
-  	honeyMw: 'f0fff0',
-  	hotpRk: 'ff69b4',
-  	RdianYd: 'cd5c5c',
-  	Rdigo: '4b0082',
-  	ivSy: 'fffff0',
-  	khaki: 'f0e68c',
-  	lavFMr: 'e6e6fa',
-  	lavFMrXsh: 'fff0f5',
-  	lawngYF: '7cfc00',
-  	NmoncEffon: 'fffacd',
-  	ZXe: 'add8e6',
-  	ZcSO: 'f08080',
-  	Zcyan: 'e0ffff',
-  	ZgTMnPdLw: 'fafad2',
-  	ZWay: 'd3d3d3',
-  	ZgYF: '90ee90',
-  	ZgYy: 'd3d3d3',
-  	ZpRk: 'ffb6c1',
-  	ZsOmon: 'ffa07a',
-  	ZsHgYF: '20b2aa',
-  	ZskyXe: '87cefa',
-  	ZUWay: '778899',
-  	ZUgYy: '778899',
-  	ZstAlXe: 'b0c4de',
-  	ZLw: 'ffffe0',
-  	lime: 'ff00',
-  	limegYF: '32cd32',
-  	lRF: 'faf0e6',
-  	magFta: 'ff00ff',
-  	maPon: '800000',
-  	VaquamarRe: '66cdaa',
-  	VXe: 'cd',
-  	VScEd: 'ba55d3',
-  	VpurpN: '9370db',
-  	VsHgYF: '3cb371',
-  	VUXe: '7b68ee',
-  	VsprRggYF: 'fa9a',
-  	VQe: '48d1cc',
-  	VviTetYd: 'c71585',
-  	midnightXe: '191970',
-  	mRtcYam: 'f5fffa',
-  	mistyPse: 'ffe4e1',
-  	moccasR: 'ffe4b5',
-  	navajowEte: 'ffdead',
-  	navy: '80',
-  	Tdlace: 'fdf5e6',
-  	Tive: '808000',
-  	TivedBb: '6b8e23',
-  	Sange: 'ffa500',
-  	SangeYd: 'ff4500',
-  	ScEd: 'da70d6',
-  	pOegTMnPd: 'eee8aa',
-  	pOegYF: '98fb98',
-  	pOeQe: 'afeeee',
-  	pOeviTetYd: 'db7093',
-  	papayawEp: 'ffefd5',
-  	pHKpuff: 'ffdab9',
-  	peru: 'cd853f',
-  	pRk: 'ffc0cb',
-  	plum: 'dda0dd',
-  	powMrXe: 'b0e0e6',
-  	purpN: '800080',
-  	YbeccapurpN: '663399',
-  	Yd: 'ff0000',
-  	Psybrown: 'bc8f8f',
-  	PyOXe: '4169e1',
-  	saddNbPwn: '8b4513',
-  	sOmon: 'fa8072',
-  	sandybPwn: 'f4a460',
-  	sHgYF: '2e8b57',
-  	sHshell: 'fff5ee',
-  	siFna: 'a0522d',
-  	silver: 'c0c0c0',
-  	skyXe: '87ceeb',
-  	UXe: '6a5acd',
-  	UWay: '708090',
-  	UgYy: '708090',
-  	snow: 'fffafa',
-  	sprRggYF: 'ff7f',
-  	stAlXe: '4682b4',
-  	tan: 'd2b48c',
-  	teO: '8080',
-  	tEstN: 'd8bfd8',
-  	tomato: 'ff6347',
-  	Qe: '40e0d0',
-  	viTet: 'ee82ee',
-  	JHt: 'f5deb3',
-  	wEte: 'ffffff',
-  	wEtesmoke: 'f5f5f5',
-  	Lw: 'ffff00',
-  	LwgYF: '9acd32'
+  const names$1 = {
+    OiceXe: 'f0f8ff',
+    antiquewEte: 'faebd7',
+    aqua: 'ffff',
+    aquamarRe: '7fffd4',
+    azuY: 'f0ffff',
+    beige: 'f5f5dc',
+    bisque: 'ffe4c4',
+    black: '0',
+    blanKedOmond: 'ffebcd',
+    Xe: 'ff',
+    XeviTet: '8a2be2',
+    bPwn: 'a52a2a',
+    burlywood: 'deb887',
+    caMtXe: '5f9ea0',
+    KartYuse: '7fff00',
+    KocTate: 'd2691e',
+    cSO: 'ff7f50',
+    cSnflowerXe: '6495ed',
+    cSnsilk: 'fff8dc',
+    crimson: 'dc143c',
+    cyan: 'ffff',
+    xXe: '8b',
+    xcyan: '8b8b',
+    xgTMnPd: 'b8860b',
+    xWay: 'a9a9a9',
+    xgYF: '6400',
+    xgYy: 'a9a9a9',
+    xkhaki: 'bdb76b',
+    xmagFta: '8b008b',
+    xTivegYF: '556b2f',
+    xSange: 'ff8c00',
+    xScEd: '9932cc',
+    xYd: '8b0000',
+    xsOmon: 'e9967a',
+    xsHgYF: '8fbc8f',
+    xUXe: '483d8b',
+    xUWay: '2f4f4f',
+    xUgYy: '2f4f4f',
+    xQe: 'ced1',
+    xviTet: '9400d3',
+    dAppRk: 'ff1493',
+    dApskyXe: 'bfff',
+    dimWay: '696969',
+    dimgYy: '696969',
+    dodgerXe: '1e90ff',
+    fiYbrick: 'b22222',
+    flSOwEte: 'fffaf0',
+    foYstWAn: '228b22',
+    fuKsia: 'ff00ff',
+    gaRsbSo: 'dcdcdc',
+    ghostwEte: 'f8f8ff',
+    gTd: 'ffd700',
+    gTMnPd: 'daa520',
+    Way: '808080',
+    gYF: '8000',
+    gYFLw: 'adff2f',
+    gYy: '808080',
+    honeyMw: 'f0fff0',
+    hotpRk: 'ff69b4',
+    RdianYd: 'cd5c5c',
+    Rdigo: '4b0082',
+    ivSy: 'fffff0',
+    khaki: 'f0e68c',
+    lavFMr: 'e6e6fa',
+    lavFMrXsh: 'fff0f5',
+    lawngYF: '7cfc00',
+    NmoncEffon: 'fffacd',
+    ZXe: 'add8e6',
+    ZcSO: 'f08080',
+    Zcyan: 'e0ffff',
+    ZgTMnPdLw: 'fafad2',
+    ZWay: 'd3d3d3',
+    ZgYF: '90ee90',
+    ZgYy: 'd3d3d3',
+    ZpRk: 'ffb6c1',
+    ZsOmon: 'ffa07a',
+    ZsHgYF: '20b2aa',
+    ZskyXe: '87cefa',
+    ZUWay: '778899',
+    ZUgYy: '778899',
+    ZstAlXe: 'b0c4de',
+    ZLw: 'ffffe0',
+    lime: 'ff00',
+    limegYF: '32cd32',
+    lRF: 'faf0e6',
+    magFta: 'ff00ff',
+    maPon: '800000',
+    VaquamarRe: '66cdaa',
+    VXe: 'cd',
+    VScEd: 'ba55d3',
+    VpurpN: '9370db',
+    VsHgYF: '3cb371',
+    VUXe: '7b68ee',
+    VsprRggYF: 'fa9a',
+    VQe: '48d1cc',
+    VviTetYd: 'c71585',
+    midnightXe: '191970',
+    mRtcYam: 'f5fffa',
+    mistyPse: 'ffe4e1',
+    moccasR: 'ffe4b5',
+    navajowEte: 'ffdead',
+    navy: '80',
+    Tdlace: 'fdf5e6',
+    Tive: '808000',
+    TivedBb: '6b8e23',
+    Sange: 'ffa500',
+    SangeYd: 'ff4500',
+    ScEd: 'da70d6',
+    pOegTMnPd: 'eee8aa',
+    pOegYF: '98fb98',
+    pOeQe: 'afeeee',
+    pOeviTetYd: 'db7093',
+    papayawEp: 'ffefd5',
+    pHKpuff: 'ffdab9',
+    peru: 'cd853f',
+    pRk: 'ffc0cb',
+    plum: 'dda0dd',
+    powMrXe: 'b0e0e6',
+    purpN: '800080',
+    YbeccapurpN: '663399',
+    Yd: 'ff0000',
+    Psybrown: 'bc8f8f',
+    PyOXe: '4169e1',
+    saddNbPwn: '8b4513',
+    sOmon: 'fa8072',
+    sandybPwn: 'f4a460',
+    sHgYF: '2e8b57',
+    sHshell: 'fff5ee',
+    siFna: 'a0522d',
+    silver: 'c0c0c0',
+    skyXe: '87ceeb',
+    UXe: '6a5acd',
+    UWay: '708090',
+    UgYy: '708090',
+    snow: 'fffafa',
+    sprRggYF: 'ff7f',
+    stAlXe: '4682b4',
+    tan: 'd2b48c',
+    teO: '8080',
+    tEstN: 'd8bfd8',
+    tomato: 'ff6347',
+    Qe: '40e0d0',
+    viTet: 'ee82ee',
+    JHt: 'f5deb3',
+    wEte: 'ffffff',
+    wEtesmoke: 'f5f5f5',
+    Lw: 'ffff00',
+    LwgYF: '9acd32'
   };
   function unpack() {
-  	const unpacked = {};
-  	const keys = Object.keys(names);
-  	const tkeys = Object.keys(map$1$1);
-  	let i, j, k, ok, nk;
-  	for (i = 0; i < keys.length; i++) {
-  		ok = nk = keys[i];
-  		for (j = 0; j < tkeys.length; j++) {
-  			k = tkeys[j];
-  			nk = nk.replace(k, map$1$1[k]);
-  		}
-  		k = parseInt(names[ok], 16);
-  		unpacked[nk] = [k >> 16 & 0xFF, k >> 8 & 0xFF, k & 0xFF];
-  	}
-  	return unpacked;
+    const unpacked = {};
+    const keys = Object.keys(names$1);
+    const tkeys = Object.keys(map$2);
+    let i, j, k, ok, nk;
+    for (i = 0; i < keys.length; i++) {
+      ok = nk = keys[i];
+      for (j = 0; j < tkeys.length; j++) {
+        k = tkeys[j];
+        nk = nk.replace(k, map$2[k]);
+      }
+      k = parseInt(names$1[ok], 16);
+      unpacked[nk] = [k >> 16 & 0xFF, k >> 8 & 0xFF, k & 0xFF];
+    }
+    return unpacked;
   }
-  let names$1;
+  let names;
   function nameParse(str) {
-  	if (!names$1) {
-  		names$1 = unpack();
-  		names$1.transparent = [0, 0, 0, 0];
-  	}
-  	const a = names$1[str.toLowerCase()];
-  	return a && {
-  		r: a[0],
-  		g: a[1],
-  		b: a[2],
-  		a: a.length === 4 ? a[3] : 255
-  	};
+    if (!names) {
+      names = unpack();
+      names.transparent = [0, 0, 0, 0];
+    }
+    const a = names[str.toLowerCase()];
+    return a && {
+      r: a[0],
+      g: a[1],
+      b: a[2],
+      a: a.length === 4 ? a[3] : 255
+    };
+  }
+  const RGB_RE = /^rgba?\(\s*([-+.\d]+)(%)?[\s,]+([-+.e\d]+)(%)?[\s,]+([-+.e\d]+)(%)?(?:[\s,/]+([-+.e\d]+)(%)?)?\s*\)$/;
+  function rgbParse(str) {
+    const m = RGB_RE.exec(str);
+    let a = 255;
+    let r, g, b;
+    if (!m) {
+      return;
+    }
+    if (m[7] !== r) {
+      const v = +m[7];
+      a = m[8] ? p2b(v) : lim(v * 255, 0, 255);
+    }
+    r = +m[1];
+    g = +m[3];
+    b = +m[5];
+    r = 255 & (m[2] ? p2b(r) : lim(r, 0, 255));
+    g = 255 & (m[4] ? p2b(g) : lim(g, 0, 255));
+    b = 255 & (m[6] ? p2b(b) : lim(b, 0, 255));
+    return {
+      r: r,
+      g: g,
+      b: b,
+      a: a
+    };
+  }
+  function rgbString(v) {
+    return v && (
+      v.a < 255
+        ? `rgba(${v.r}, ${v.g}, ${v.b}, ${b2n(v.a)})`
+        : `rgb(${v.r}, ${v.g}, ${v.b})`
+    );
+  }
+  const to = v => v <= 0.0031308 ? v * 12.92 : Math.pow(v, 1.0 / 2.4) * 1.055 - 0.055;
+  const from = v => v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  function interpolate$1(rgb1, rgb2, t) {
+    const r = from(b2n(rgb1.r));
+    const g = from(b2n(rgb1.g));
+    const b = from(b2n(rgb1.b));
+    return {
+      r: n2b(to(r + t * (from(b2n(rgb2.r)) - r))),
+      g: n2b(to(g + t * (from(b2n(rgb2.g)) - g))),
+      b: n2b(to(b + t * (from(b2n(rgb2.b)) - b))),
+      a: rgb1.a + t * (rgb2.a - rgb1.a)
+    };
   }
   function modHSL(v, i, ratio) {
-  	if (v) {
-  		let tmp = rgb2hsl(v);
-  		tmp[i] = Math.max(0, Math.min(tmp[i] + tmp[i] * ratio, i === 0 ? 360 : 1));
-  		tmp = hsl2rgb(tmp);
-  		v.r = tmp[0];
-  		v.g = tmp[1];
-  		v.b = tmp[2];
-  	}
+    if (v) {
+      let tmp = rgb2hsl(v);
+      tmp[i] = Math.max(0, Math.min(tmp[i] + tmp[i] * ratio, i === 0 ? 360 : 1));
+      tmp = hsl2rgb(tmp);
+      v.r = tmp[0];
+      v.g = tmp[1];
+      v.b = tmp[2];
+    }
   }
   function clone(v, proto) {
-  	return v ? Object.assign(proto || {}, v) : v;
+    return v ? Object.assign(proto || {}, v) : v;
   }
   function fromObject(input) {
-  	var v = {r: 0, g: 0, b: 0, a: 255};
-  	if (Array.isArray(input)) {
-  		if (input.length >= 3) {
-  			v = {r: input[0], g: input[1], b: input[2], a: 255};
-  			if (input.length > 3) {
-  				v.a = n2b(input[3]);
-  			}
-  		}
-  	} else {
-  		v = clone(input, {r: 0, g: 0, b: 0, a: 1});
-  		v.a = n2b(v.a);
-  	}
-  	return v;
+    var v = {r: 0, g: 0, b: 0, a: 255};
+    if (Array.isArray(input)) {
+      if (input.length >= 3) {
+        v = {r: input[0], g: input[1], b: input[2], a: 255};
+        if (input.length > 3) {
+          v.a = n2b(input[3]);
+        }
+      }
+    } else {
+      v = clone(input, {r: 0, g: 0, b: 0, a: 1});
+      v.a = n2b(v.a);
+    }
+    return v;
   }
   function functionParse(str) {
-  	if (str.charAt(0) === 'r') {
-  		return rgbParse(str);
-  	}
-  	return hueParse(str);
+    if (str.charAt(0) === 'r') {
+      return rgbParse(str);
+    }
+    return hueParse(str);
   }
   class Color {
-  	constructor(input) {
-  		if (input instanceof Color) {
-  			return input;
-  		}
-  		const type = typeof input;
-  		let v;
-  		if (type === 'object') {
-  			v = fromObject(input);
-  		} else if (type === 'string') {
-  			v = hexParse(input) || nameParse(input) || functionParse(input);
-  		}
-  		this._rgb = v;
-  		this._valid = !!v;
-  	}
-  	get valid() {
-  		return this._valid;
-  	}
-  	get rgb() {
-  		var v = clone(this._rgb);
-  		if (v) {
-  			v.a = b2n(v.a);
-  		}
-  		return v;
-  	}
-  	set rgb(obj) {
-  		this._rgb = fromObject(obj);
-  	}
-  	rgbString() {
-  		return this._valid ? rgbString(this._rgb) : this._rgb;
-  	}
-  	hexString() {
-  		return this._valid ? hexString(this._rgb) : this._rgb;
-  	}
-  	hslString() {
-  		return this._valid ? hslString(this._rgb) : this._rgb;
-  	}
-  	mix(color, weight) {
-  		const me = this;
-  		if (color) {
-  			const c1 = me.rgb;
-  			const c2 = color.rgb;
-  			let w2;
-  			const p = weight === w2 ? 0.5 : weight;
-  			const w = 2 * p - 1;
-  			const a = c1.a - c2.a;
-  			const w1 = ((w * a === -1 ? w : (w + a) / (1 + w * a)) + 1) / 2.0;
-  			w2 = 1 - w1;
-  			c1.r = 0xFF & w1 * c1.r + w2 * c2.r + 0.5;
-  			c1.g = 0xFF & w1 * c1.g + w2 * c2.g + 0.5;
-  			c1.b = 0xFF & w1 * c1.b + w2 * c2.b + 0.5;
-  			c1.a = p * c1.a + (1 - p) * c2.a;
-  			me.rgb = c1;
-  		}
-  		return me;
-  	}
-  	clone() {
-  		return new Color(this.rgb);
-  	}
-  	alpha(a) {
-  		this._rgb.a = n2b(a);
-  		return this;
-  	}
-  	clearer(ratio) {
-  		const rgb = this._rgb;
-  		rgb.a *= 1 - ratio;
-  		return this;
-  	}
-  	greyscale() {
-  		const rgb = this._rgb;
-  		const val = round(rgb.r * 0.3 + rgb.g * 0.59 + rgb.b * 0.11);
-  		rgb.r = rgb.g = rgb.b = val;
-  		return this;
-  	}
-  	opaquer(ratio) {
-  		const rgb = this._rgb;
-  		rgb.a *= 1 + ratio;
-  		return this;
-  	}
-  	negate() {
-  		const v = this._rgb;
-  		v.r = 255 - v.r;
-  		v.g = 255 - v.g;
-  		v.b = 255 - v.b;
-  		return this;
-  	}
-  	lighten(ratio) {
-  		modHSL(this._rgb, 2, ratio);
-  		return this;
-  	}
-  	darken(ratio) {
-  		modHSL(this._rgb, 2, -ratio);
-  		return this;
-  	}
-  	saturate(ratio) {
-  		modHSL(this._rgb, 1, ratio);
-  		return this;
-  	}
-  	desaturate(ratio) {
-  		modHSL(this._rgb, 1, -ratio);
-  		return this;
-  	}
-  	rotate(deg) {
-  		rotate(this._rgb, deg);
-  		return this;
-  	}
+    constructor(input) {
+      if (input instanceof Color) {
+        return input;
+      }
+      const type = typeof input;
+      let v;
+      if (type === 'object') {
+        v = fromObject(input);
+      } else if (type === 'string') {
+        v = hexParse(input) || nameParse(input) || functionParse(input);
+      }
+      this._rgb = v;
+      this._valid = !!v;
+    }
+    get valid() {
+      return this._valid;
+    }
+    get rgb() {
+      var v = clone(this._rgb);
+      if (v) {
+        v.a = b2n(v.a);
+      }
+      return v;
+    }
+    set rgb(obj) {
+      this._rgb = fromObject(obj);
+    }
+    rgbString() {
+      return this._valid ? rgbString(this._rgb) : undefined;
+    }
+    hexString() {
+      return this._valid ? hexString(this._rgb) : undefined;
+    }
+    hslString() {
+      return this._valid ? hslString(this._rgb) : undefined;
+    }
+    mix(color, weight) {
+      if (color) {
+        const c1 = this.rgb;
+        const c2 = color.rgb;
+        let w2;
+        const p = weight === w2 ? 0.5 : weight;
+        const w = 2 * p - 1;
+        const a = c1.a - c2.a;
+        const w1 = ((w * a === -1 ? w : (w + a) / (1 + w * a)) + 1) / 2.0;
+        w2 = 1 - w1;
+        c1.r = 0xFF & w1 * c1.r + w2 * c2.r + 0.5;
+        c1.g = 0xFF & w1 * c1.g + w2 * c2.g + 0.5;
+        c1.b = 0xFF & w1 * c1.b + w2 * c2.b + 0.5;
+        c1.a = p * c1.a + (1 - p) * c2.a;
+        this.rgb = c1;
+      }
+      return this;
+    }
+    interpolate(color, t) {
+      if (color) {
+        this._rgb = interpolate$1(this._rgb, color._rgb, t);
+      }
+      return this;
+    }
+    clone() {
+      return new Color(this.rgb);
+    }
+    alpha(a) {
+      this._rgb.a = n2b(a);
+      return this;
+    }
+    clearer(ratio) {
+      const rgb = this._rgb;
+      rgb.a *= 1 - ratio;
+      return this;
+    }
+    greyscale() {
+      const rgb = this._rgb;
+      const val = round(rgb.r * 0.3 + rgb.g * 0.59 + rgb.b * 0.11);
+      rgb.r = rgb.g = rgb.b = val;
+      return this;
+    }
+    opaquer(ratio) {
+      const rgb = this._rgb;
+      rgb.a *= 1 + ratio;
+      return this;
+    }
+    negate() {
+      const v = this._rgb;
+      v.r = 255 - v.r;
+      v.g = 255 - v.g;
+      v.b = 255 - v.b;
+      return this;
+    }
+    lighten(ratio) {
+      modHSL(this._rgb, 2, ratio);
+      return this;
+    }
+    darken(ratio) {
+      modHSL(this._rgb, 2, -ratio);
+      return this;
+    }
+    saturate(ratio) {
+      modHSL(this._rgb, 1, ratio);
+      return this;
+    }
+    desaturate(ratio) {
+      modHSL(this._rgb, 1, -ratio);
+      return this;
+    }
+    rotate(deg) {
+      rotate(this._rgb, deg);
+      return this;
+    }
   }
   function index_esm(input) {
-  	return new Color(input);
+    return new Color(input);
   }
 
-  const isPatternOrGradient = (value) => value instanceof CanvasGradient || value instanceof CanvasPattern;
+  function isPatternOrGradient(value) {
+    if (value && typeof value === 'object') {
+      const type = value.toString();
+      return type === '[object CanvasPattern]' || type === '[object CanvasGradient]';
+    }
+    return false;
+  }
   function color(value) {
     return isPatternOrGradient(value) ? value : index_esm(value);
   }
@@ -1094,7 +1277,8 @@
       this.indexAxis = 'x';
       this.interaction = {
         mode: 'nearest',
-        intersect: true
+        intersect: true,
+        includeInvisible: false
       };
       this.maintainAspectRatio = true;
       this.onHover = null;
@@ -1228,7 +1412,10 @@
     ctx.restore();
   }
   function drawPoint(ctx, options, x, y) {
-    let type, xOffset, yOffset, size, cornerRadius;
+    drawPointLegend(ctx, options, x, y, null);
+  }
+  function drawPointLegend(ctx, options, x, y, w) {
+    let type, xOffset, yOffset, size, cornerRadius, width;
     const style = options.pointStyle;
     const rotation = options.rotation;
     const radius = options.radius;
@@ -1250,7 +1437,11 @@
     ctx.beginPath();
     switch (style) {
     default:
-      ctx.arc(x, y, radius, 0, TAU);
+      if (w) {
+        ctx.ellipse(x, y, w / 2, radius, 0, 0, TAU);
+      } else {
+        ctx.arc(x, y, radius, 0, TAU);
+      }
       ctx.closePath();
       break;
     case 'triangle':
@@ -1275,7 +1466,8 @@
     case 'rect':
       if (!rotation) {
         size = Math.SQRT1_2 * radius;
-        ctx.rect(x - size, y - size, 2 * size, 2 * size);
+        width = w ? w / 2 : size;
+        ctx.rect(x - width, y - size, 2 * width, 2 * size);
         break;
       }
       rad += QUARTER_PI;
@@ -1314,7 +1506,7 @@
       ctx.lineTo(x - yOffset, y + xOffset);
       break;
     case 'line':
-      xOffset = Math.cos(rad) * radius;
+      xOffset = w ? w / 2 : Math.cos(rad) * radius;
       yOffset = Math.sin(rad) * radius;
       ctx.moveTo(x - xOffset, y - yOffset);
       ctx.lineTo(x + xOffset, y + yOffset);
@@ -1541,99 +1733,6 @@
   }
   function createContext(parentContext, context) {
     return Object.assign(Object.create(parentContext), context);
-  }
-
-  function _lookup(table, value, cmp) {
-    cmp = cmp || ((index) => table[index] < value);
-    let hi = table.length - 1;
-    let lo = 0;
-    let mid;
-    while (hi - lo > 1) {
-      mid = (lo + hi) >> 1;
-      if (cmp(mid)) {
-        lo = mid;
-      } else {
-        hi = mid;
-      }
-    }
-    return {lo, hi};
-  }
-  const _lookupByKey = (table, key, value) =>
-    _lookup(table, value, index => table[index][key] < value);
-  const _rlookupByKey = (table, key, value) =>
-    _lookup(table, value, index => table[index][key] >= value);
-  function _filterBetween(values, min, max) {
-    let start = 0;
-    let end = values.length;
-    while (start < end && values[start] < min) {
-      start++;
-    }
-    while (end > start && values[end - 1] > max) {
-      end--;
-    }
-    return start > 0 || end < values.length
-      ? values.slice(start, end)
-      : values;
-  }
-  const arrayEvents = ['push', 'pop', 'shift', 'splice', 'unshift'];
-  function listenArrayEvents(array, listener) {
-    if (array._chartjs) {
-      array._chartjs.listeners.push(listener);
-      return;
-    }
-    Object.defineProperty(array, '_chartjs', {
-      configurable: true,
-      enumerable: false,
-      value: {
-        listeners: [listener]
-      }
-    });
-    arrayEvents.forEach((key) => {
-      const method = '_onData' + _capitalize(key);
-      const base = array[key];
-      Object.defineProperty(array, key, {
-        configurable: true,
-        enumerable: false,
-        value(...args) {
-          const res = base.apply(this, args);
-          array._chartjs.listeners.forEach((object) => {
-            if (typeof object[method] === 'function') {
-              object[method](...args);
-            }
-          });
-          return res;
-        }
-      });
-    });
-  }
-  function unlistenArrayEvents(array, listener) {
-    const stub = array._chartjs;
-    if (!stub) {
-      return;
-    }
-    const listeners = stub.listeners;
-    const index = listeners.indexOf(listener);
-    if (index !== -1) {
-      listeners.splice(index, 1);
-    }
-    if (listeners.length > 0) {
-      return;
-    }
-    arrayEvents.forEach((key) => {
-      delete array[key];
-    });
-    delete array._chartjs;
-  }
-  function _arrayUnique(items) {
-    const set = new Set();
-    let i, ilen;
-    for (i = 0, ilen = items.length; i < ilen; ++i) {
-      set.add(items[i]);
-    }
-    if (set.size === ilen) {
-      return items;
-    }
-    return Array.from(set);
   }
 
   function _createResolver(scopes, prefixes = [''], rootScopes = scopes, fallback, getTarget = () => scopes[0]) {
@@ -1879,6 +1978,20 @@
     }
     return Array.from(set);
   }
+  function _parseObjectDataRadialScale(meta, data, start, count) {
+    const {iScale} = meta;
+    const {key = 'r'} = this._parsing;
+    const parsed = new Array(count);
+    let i, ilen, index, item;
+    for (i = 0, ilen = count; i < ilen; ++i) {
+      index = i + start;
+      item = data[index];
+      parsed[i] = {
+        r: iScale.parse(resolveObjectKey(item, key), index)
+      };
+    }
+    return parsed;
+  }
 
   const EPSILON = Number.EPSILON || 1e-14;
   const getPoint = (points, i) => i < points.length && !points[i].skip && points[i];
@@ -2075,8 +2188,7 @@
     return result;
   }
   const useOffsetPos = (x, y, target) => (x > 0 || y > 0) && (!target || !target.shadowRoot);
-  function getCanvasPosition(evt, canvas) {
-    const e = evt.native || evt;
+  function getCanvasPosition(e, canvas) {
     const touches = e.touches;
     const source = touches && touches.length ? touches[0] : e;
     const {offsetX, offsetY} = source;
@@ -2093,7 +2205,10 @@
     }
     return {x, y, box};
   }
-  function getRelativePosition$1(evt, chart) {
+  function getRelativePosition(evt, chart) {
+    if ('native' in evt) {
+      return evt;
+    }
     const {canvas, currentDevicePixelRatio} = chart;
     const style = getComputedStyle(canvas);
     const borderBox = style.boxSizing === 'border-box';
@@ -2545,9 +2660,9 @@
   }
 
   /*!
-   * Chart.js v3.7.0
+   * Chart.js v3.9.1
    * https://www.chartjs.org
-   * (c) 2021 Chart.js Contributors
+   * (c) 2022 Chart.js Contributors
    * Released under the MIT License
    */
 
@@ -3159,6 +3274,7 @@
       this._drawStart = undefined;
       this._drawCount = undefined;
       this.enableOptionSharing = false;
+      this.supportsDecimation = false;
       this.$context = undefined;
       this._syncList = [];
       this.initialize();
@@ -3559,6 +3675,14 @@
     includeOptions(mode, sharedOptions) {
       return !sharedOptions || isDirectUpdateMode(mode) || this.chart._animationsDisabled;
     }
+    _getSharedOptions(start, mode) {
+      const firstOpts = this.resolveDataElementOptions(start, mode);
+      const previouslySharedOptions = this._sharedOptions;
+      const sharedOptions = this.getSharedOptions(firstOpts);
+      const includeOptions = this.includeOptions(mode, sharedOptions) || (sharedOptions !== previouslySharedOptions);
+      this.updateSharedOptions(sharedOptions, mode, firstOpts);
+      return {sharedOptions, includeOptions};
+    }
     updateElement(element, index, properties, mode) {
       if (isDirectUpdateMode(mode)) {
         Object.assign(element, properties);
@@ -3837,6 +3961,10 @@
       properties.borderSkipped = res;
       return;
     }
+    if (edge === true) {
+      properties.borderSkipped = {top: true, right: true, bottom: true, left: true};
+      return;
+    }
     const {start, end, reverse, top, bottom} = borderProps(properties);
     if (edge === 'middle' && stack) {
       properties.enableBorderRadius = true;
@@ -3934,10 +4062,7 @@
       const base = vScale.getBasePixel();
       const horizontal = vScale.isHorizontal();
       const ruler = this._getRuler();
-      const firstOpts = this.resolveDataElementOptions(start, mode);
-      const sharedOptions = this.getSharedOptions(firstOpts);
-      const includeOptions = this.includeOptions(mode, sharedOptions);
-      this.updateSharedOptions(sharedOptions, mode, firstOpts);
+      const {sharedOptions, includeOptions} = this._getSharedOptions(start, mode);
       for (let i = start; i < start + count; i++) {
         const parsed = this.getParsed(i);
         const vpixels = reset || isNullOrUndef(parsed[vScale.axis]) ? {base, head: base} : this._calculateBarValuePixels(i);
@@ -3962,31 +4087,27 @@
       }
     }
     _getStacks(last, dataIndex) {
-      const meta = this._cachedMeta;
-      const iScale = meta.iScale;
-      const metasets = iScale.getMatchingVisibleMetas(this._type);
+      const {iScale} = this._cachedMeta;
+      const metasets = iScale.getMatchingVisibleMetas(this._type)
+        .filter(meta => meta.controller.options.grouped);
       const stacked = iScale.options.stacked;
-      const ilen = metasets.length;
       const stacks = [];
-      let i, item;
-      for (i = 0; i < ilen; ++i) {
-        item = metasets[i];
-        if (!item.controller.options.grouped) {
+      const skipNull = (meta) => {
+        const parsed = meta.controller.getParsed(dataIndex);
+        const val = parsed && parsed[meta.vScale.axis];
+        if (isNullOrUndef(val) || isNaN(val)) {
+          return true;
+        }
+      };
+      for (const meta of metasets) {
+        if (dataIndex !== undefined && skipNull(meta)) {
           continue;
         }
-        if (typeof dataIndex !== 'undefined') {
-          const val = item.controller.getParsed(dataIndex)[
-            item.controller._cachedMeta.vScale.axis
-          ];
-          if (isNullOrUndef(val) || isNaN(val)) {
-            continue;
-          }
+        if (stacked === false || stacks.indexOf(meta.stack) === -1 ||
+  				(stacked === undefined && meta.stack === undefined)) {
+          stacks.push(meta.stack);
         }
-        if (stacked === false || stacks.indexOf(item.stack) === -1 ||
-  				(stacked === undefined && item.stack === undefined)) {
-          stacks.push(item.stack);
-        }
-        if (item.index === last) {
+        if (meta.index === last) {
           break;
         }
       }
@@ -4064,6 +4185,11 @@
         if (value === actualBase) {
           base -= size / 2;
         }
+        const startPixel = vScale.getPixelForDecimal(0);
+        const endPixel = vScale.getPixelForDecimal(1);
+        const min = Math.min(startPixel, endPixel);
+        const max = Math.max(startPixel, endPixel);
+        base = Math.max(Math.min(base, max), min);
         head = base + size;
       }
       if (base === vScale.getPixelForValue(actualBase)) {
@@ -4201,9 +4327,7 @@
     updateElements(points, start, count, mode) {
       const reset = mode === 'reset';
       const {iScale, vScale} = this._cachedMeta;
-      const firstOpts = this.resolveDataElementOptions(start, mode);
-      const sharedOptions = this.getSharedOptions(firstOpts);
-      const includeOptions = this.includeOptions(mode, sharedOptions);
+      const {sharedOptions, includeOptions} = this._getSharedOptions(start, mode);
       const iAxis = iScale.axis;
       const vAxis = vScale.axis;
       for (let i = start; i < start + count; i++) {
@@ -4214,14 +4338,13 @@
         const vPixel = properties[vAxis] = reset ? vScale.getBasePixel() : vScale.getPixelForValue(parsed[vAxis]);
         properties.skip = isNaN(iPixel) || isNaN(vPixel);
         if (includeOptions) {
-          properties.options = this.resolveDataElementOptions(i, point.active ? 'active' : mode);
+          properties.options = sharedOptions || this.resolveDataElementOptions(i, point.active ? 'active' : mode);
           if (reset) {
             properties.options.radius = 0;
           }
         }
         this.updateElement(point, i, properties, mode);
       }
-      this.updateSharedOptions(sharedOptions, mode, firstOpts);
     }
     resolveDataElementOptions(index, mode) {
       const parsed = this.getParsed(index);
@@ -4387,9 +4510,7 @@
       const animateScale = reset && animationOpts.animateScale;
       const innerRadius = animateScale ? 0 : this.innerRadius;
       const outerRadius = animateScale ? 0 : this.outerRadius;
-      const firstOpts = this.resolveDataElementOptions(start, mode);
-      const sharedOptions = this.getSharedOptions(firstOpts);
-      const includeOptions = this.includeOptions(mode, sharedOptions);
+      const {sharedOptions, includeOptions} = this._getSharedOptions(start, mode);
       let startAngle = this._getRotation();
       let i;
       for (i = 0; i < start; ++i) {
@@ -4413,7 +4534,6 @@
         startAngle += circumference;
         this.updateElement(arc, i, properties, mode);
       }
-      this.updateSharedOptions(sharedOptions, mode, firstOpts);
     }
     calculateTotal() {
       const meta = this._cachedMeta;
@@ -4574,16 +4694,17 @@
   class LineController extends DatasetController {
     initialize() {
       this.enableOptionSharing = true;
+      this.supportsDecimation = true;
       super.initialize();
     }
     update(mode) {
       const meta = this._cachedMeta;
       const {dataset: line, data: points = [], _dataset} = meta;
       const animationsDisabled = this.chart._animationsDisabled;
-      let {start, count} = getStartAndCountOfVisiblePoints(meta, points, animationsDisabled);
+      let {start, count} = _getStartAndCountOfVisiblePoints(meta, points, animationsDisabled);
       this._drawStart = start;
       this._drawCount = count;
-      if (scaleRangesChanged(meta)) {
+      if (_scaleRangesChanged(meta)) {
         start = 0;
         count = points.length;
       }
@@ -4605,9 +4726,7 @@
     updateElements(points, start, count, mode) {
       const reset = mode === 'reset';
       const {iScale, vScale, _stacked, _dataset} = this._cachedMeta;
-      const firstOpts = this.resolveDataElementOptions(start, mode);
-      const sharedOptions = this.getSharedOptions(firstOpts);
-      const includeOptions = this.includeOptions(mode, sharedOptions);
+      const {sharedOptions, includeOptions} = this._getSharedOptions(start, mode);
       const iAxis = iScale.axis;
       const vAxis = vScale.axis;
       const {spanGaps, segment} = this.options;
@@ -4622,7 +4741,7 @@
         const iPixel = properties[iAxis] = iScale.getPixelForValue(parsed[iAxis], i);
         const vPixel = properties[vAxis] = reset || nullData ? vScale.getBasePixel() : vScale.getPixelForValue(_stacked ? this.applyStack(vScale, parsed, _stacked) : parsed[vAxis], i);
         properties.skip = isNaN(iPixel) || isNaN(vPixel) || nullData;
-        properties.stop = i > 0 && (parsed[iAxis] - prevParsed[iAxis]) > maxGapLength;
+        properties.stop = i > 0 && (Math.abs(parsed[iAxis] - prevParsed[iAxis])) > maxGapLength;
         if (segment) {
           properties.parsed = parsed;
           properties.raw = _dataset.data[i];
@@ -4635,7 +4754,6 @@
         }
         prevParsed = parsed;
       }
-      this.updateSharedOptions(sharedOptions, mode, firstOpts);
     }
     getMaxOverflow() {
       const meta = this._cachedMeta;
@@ -4672,50 +4790,6 @@
       },
     }
   };
-  function getStartAndCountOfVisiblePoints(meta, points, animationsDisabled) {
-    const pointCount = points.length;
-    let start = 0;
-    let count = pointCount;
-    if (meta._sorted) {
-      const {iScale, _parsed} = meta;
-      const axis = iScale.axis;
-      const {min, max, minDefined, maxDefined} = iScale.getUserBounds();
-      if (minDefined) {
-        start = _limitValue(Math.min(
-          _lookupByKey(_parsed, iScale.axis, min).lo,
-          animationsDisabled ? pointCount : _lookupByKey(points, axis, iScale.getPixelForValue(min)).lo),
-        0, pointCount - 1);
-      }
-      if (maxDefined) {
-        count = _limitValue(Math.max(
-          _lookupByKey(_parsed, iScale.axis, max).hi + 1,
-          animationsDisabled ? 0 : _lookupByKey(points, axis, iScale.getPixelForValue(max)).hi + 1),
-        start, pointCount) - start;
-      } else {
-        count = pointCount - start;
-      }
-    }
-    return {start, count};
-  }
-  function scaleRangesChanged(meta) {
-    const {xScale, yScale, _scaleRanges} = meta;
-    const newRanges = {
-      xmin: xScale.min,
-      xmax: xScale.max,
-      ymin: yScale.min,
-      ymax: yScale.max
-    };
-    if (!_scaleRanges) {
-      meta._scaleRanges = newRanges;
-      return true;
-    }
-    const changed = _scaleRanges.xmin !== xScale.min
-  		|| _scaleRanges.xmax !== xScale.max
-  		|| _scaleRanges.ymin !== yScale.min
-  		|| _scaleRanges.ymax !== yScale.max;
-    Object.assign(_scaleRanges, newRanges);
-    return changed;
-  }
 
   class PolarAreaController extends DatasetController {
     constructor(chart, datasetIndex) {
@@ -4733,10 +4807,29 @@
         value,
       };
     }
+    parseObjectData(meta, data, start, count) {
+      return _parseObjectDataRadialScale.bind(this)(meta, data, start, count);
+    }
     update(mode) {
       const arcs = this._cachedMeta.data;
       this._updateRadius();
       this.updateElements(arcs, 0, arcs.length, mode);
+    }
+    getMinMax() {
+      const meta = this._cachedMeta;
+      const range = {min: Number.POSITIVE_INFINITY, max: Number.NEGATIVE_INFINITY};
+      meta.data.forEach((element, index) => {
+        const parsed = this.getParsed(index).r;
+        if (!isNaN(parsed) && this.chart.getDataVisibility(index)) {
+          if (parsed < range.min) {
+            range.min = parsed;
+          }
+          if (parsed > range.max) {
+            range.max = parsed;
+          }
+        }
+      });
+      return range;
     }
     _updateRadius() {
       const chart = this.chart;
@@ -4752,7 +4845,6 @@
     updateElements(arcs, start, count, mode) {
       const reset = mode === 'reset';
       const chart = this.chart;
-      const dataset = this.getDataset();
       const opts = chart.options;
       const animationOpts = opts.animation;
       const scale = this._cachedMeta.rScale;
@@ -4769,7 +4861,7 @@
         const arc = arcs[i];
         let startAngle = angle;
         let endAngle = angle + this._computeAngle(i, mode, defaultAngle);
-        let outerRadius = chart.getDataVisibility(i) ? scale.getDistanceFromCenterForValue(dataset.data[i]) : 0;
+        let outerRadius = chart.getDataVisibility(i) ? scale.getDistanceFromCenterForValue(this.getParsed(i).r) : 0;
         angle = endAngle;
         if (reset) {
           if (animationOpts.animateScale) {
@@ -4792,11 +4884,10 @@
       }
     }
     countVisibleElements() {
-      const dataset = this.getDataset();
       const meta = this._cachedMeta;
       let count = 0;
       meta.data.forEach((element, index) => {
-        if (!isNaN(dataset.data[index]) && this.chart.getDataVisibility(index)) {
+        if (!isNaN(this.getParsed(index).r) && this.chart.getDataVisibility(index)) {
           count++;
         }
       });
@@ -4903,6 +4994,9 @@
         value: '' + vScale.getLabelForValue(parsed[vScale.axis])
       };
     }
+    parseObjectData(meta, data, start, count) {
+      return _parseObjectDataRadialScale.bind(this)(meta, data, start, count);
+    }
     update(mode) {
       const meta = this._cachedMeta;
       const line = meta.dataset;
@@ -4924,13 +5018,12 @@
       this.updateElements(points, 0, points.length, mode);
     }
     updateElements(points, start, count, mode) {
-      const dataset = this.getDataset();
       const scale = this._cachedMeta.rScale;
       const reset = mode === 'reset';
       for (let i = start; i < start + count; i++) {
         const point = points[i];
         const options = this.resolveDataElementOptions(i, point.active ? 'active' : mode);
-        const pointPosition = scale.getPointPositionForValue(i, dataset.data[i]);
+        const pointPosition = scale.getPointPositionForValue(i, this.getParsed(i).r);
         const x = reset ? scale.xCenter : pointPosition.x;
         const y = reset ? scale.yCenter : pointPosition.y;
         const properties = {
@@ -4964,881 +5057,6 @@
       }
     }
   };
-
-  class ScatterController extends LineController {
-  }
-  ScatterController.id = 'scatter';
-  ScatterController.defaults = {
-    showLine: false,
-    fill: false
-  };
-  ScatterController.overrides = {
-    interaction: {
-      mode: 'point'
-    },
-    plugins: {
-      tooltip: {
-        callbacks: {
-          title() {
-            return '';
-          },
-          label(item) {
-            return '(' + item.label + ', ' + item.formattedValue + ')';
-          }
-        }
-      }
-    },
-    scales: {
-      x: {
-        type: 'linear'
-      },
-      y: {
-        type: 'linear'
-      }
-    }
-  };
-
-  var controllers = /*#__PURE__*/Object.freeze({
-  __proto__: null,
-  BarController: BarController,
-  BubbleController: BubbleController,
-  DoughnutController: DoughnutController,
-  LineController: LineController,
-  PolarAreaController: PolarAreaController,
-  PieController: PieController,
-  RadarController: RadarController,
-  ScatterController: ScatterController
-  });
-
-  function abstract() {
-    throw new Error('This method is not implemented: Check that a complete date adapter is provided.');
-  }
-  class DateAdapter {
-    constructor(options) {
-      this.options = options || {};
-    }
-    formats() {
-      return abstract();
-    }
-    parse(value, format) {
-      return abstract();
-    }
-    format(timestamp, format) {
-      return abstract();
-    }
-    add(timestamp, amount, unit) {
-      return abstract();
-    }
-    diff(a, b, unit) {
-      return abstract();
-    }
-    startOf(timestamp, unit, weekday) {
-      return abstract();
-    }
-    endOf(timestamp, unit) {
-      return abstract();
-    }
-  }
-  DateAdapter.override = function(members) {
-    Object.assign(DateAdapter.prototype, members);
-  };
-  var adapters = {
-    _date: DateAdapter
-  };
-
-  function getRelativePosition(e, chart) {
-    if ('native' in e) {
-      return {
-        x: e.x,
-        y: e.y
-      };
-    }
-    return getRelativePosition$1(e, chart);
-  }
-  function evaluateAllVisibleItems(chart, handler) {
-    const metasets = chart.getSortedVisibleDatasetMetas();
-    let index, data, element;
-    for (let i = 0, ilen = metasets.length; i < ilen; ++i) {
-      ({index, data} = metasets[i]);
-      for (let j = 0, jlen = data.length; j < jlen; ++j) {
-        element = data[j];
-        if (!element.skip) {
-          handler(element, index, j);
-        }
-      }
-    }
-  }
-  function binarySearch(metaset, axis, value, intersect) {
-    const {controller, data, _sorted} = metaset;
-    const iScale = controller._cachedMeta.iScale;
-    if (iScale && axis === iScale.axis && axis !== 'r' && _sorted && data.length) {
-      const lookupMethod = iScale._reversePixels ? _rlookupByKey : _lookupByKey;
-      if (!intersect) {
-        return lookupMethod(data, axis, value);
-      } else if (controller._sharedOptions) {
-        const el = data[0];
-        const range = typeof el.getRange === 'function' && el.getRange(axis);
-        if (range) {
-          const start = lookupMethod(data, axis, value - range);
-          const end = lookupMethod(data, axis, value + range);
-          return {lo: start.lo, hi: end.hi};
-        }
-      }
-    }
-    return {lo: 0, hi: data.length - 1};
-  }
-  function optimizedEvaluateItems(chart, axis, position, handler, intersect) {
-    const metasets = chart.getSortedVisibleDatasetMetas();
-    const value = position[axis];
-    for (let i = 0, ilen = metasets.length; i < ilen; ++i) {
-      const {index, data} = metasets[i];
-      const {lo, hi} = binarySearch(metasets[i], axis, value, intersect);
-      for (let j = lo; j <= hi; ++j) {
-        const element = data[j];
-        if (!element.skip) {
-          handler(element, index, j);
-        }
-      }
-    }
-  }
-  function getDistanceMetricForAxis(axis) {
-    const useX = axis.indexOf('x') !== -1;
-    const useY = axis.indexOf('y') !== -1;
-    return function(pt1, pt2) {
-      const deltaX = useX ? Math.abs(pt1.x - pt2.x) : 0;
-      const deltaY = useY ? Math.abs(pt1.y - pt2.y) : 0;
-      return Math.sqrt(Math.pow(deltaX, 2) + Math.pow(deltaY, 2));
-    };
-  }
-  function getIntersectItems(chart, position, axis, useFinalPosition) {
-    const items = [];
-    if (!_isPointInArea(position, chart.chartArea, chart._minPadding)) {
-      return items;
-    }
-    const evaluationFunc = function(element, datasetIndex, index) {
-      if (element.inRange(position.x, position.y, useFinalPosition)) {
-        items.push({element, datasetIndex, index});
-      }
-    };
-    optimizedEvaluateItems(chart, axis, position, evaluationFunc, true);
-    return items;
-  }
-  function getNearestRadialItems(chart, position, axis, useFinalPosition) {
-    let items = [];
-    function evaluationFunc(element, datasetIndex, index) {
-      const {startAngle, endAngle} = element.getProps(['startAngle', 'endAngle'], useFinalPosition);
-      const {angle} = getAngleFromPoint(element, {x: position.x, y: position.y});
-      if (_angleBetween(angle, startAngle, endAngle)) {
-        items.push({element, datasetIndex, index});
-      }
-    }
-    optimizedEvaluateItems(chart, axis, position, evaluationFunc);
-    return items;
-  }
-  function getNearestCartesianItems(chart, position, axis, intersect, useFinalPosition) {
-    let items = [];
-    const distanceMetric = getDistanceMetricForAxis(axis);
-    let minDistance = Number.POSITIVE_INFINITY;
-    function evaluationFunc(element, datasetIndex, index) {
-      const inRange = element.inRange(position.x, position.y, useFinalPosition);
-      if (intersect && !inRange) {
-        return;
-      }
-      const center = element.getCenterPoint(useFinalPosition);
-      const pointInArea = _isPointInArea(center, chart.chartArea, chart._minPadding);
-      if (!pointInArea && !inRange) {
-        return;
-      }
-      const distance = distanceMetric(position, center);
-      if (distance < minDistance) {
-        items = [{element, datasetIndex, index}];
-        minDistance = distance;
-      } else if (distance === minDistance) {
-        items.push({element, datasetIndex, index});
-      }
-    }
-    optimizedEvaluateItems(chart, axis, position, evaluationFunc);
-    return items;
-  }
-  function getNearestItems(chart, position, axis, intersect, useFinalPosition) {
-    if (!_isPointInArea(position, chart.chartArea, chart._minPadding)) {
-      return [];
-    }
-    return axis === 'r' && !intersect
-      ? getNearestRadialItems(chart, position, axis, useFinalPosition)
-      : getNearestCartesianItems(chart, position, axis, intersect, useFinalPosition);
-  }
-  function getAxisItems(chart, e, options, useFinalPosition) {
-    const position = getRelativePosition(e, chart);
-    const items = [];
-    const axis = options.axis;
-    const rangeMethod = axis === 'x' ? 'inXRange' : 'inYRange';
-    let intersectsItem = false;
-    evaluateAllVisibleItems(chart, (element, datasetIndex, index) => {
-      if (element[rangeMethod](position[axis], useFinalPosition)) {
-        items.push({element, datasetIndex, index});
-      }
-      if (element.inRange(position.x, position.y, useFinalPosition)) {
-        intersectsItem = true;
-      }
-    });
-    if (options.intersect && !intersectsItem) {
-      return [];
-    }
-    return items;
-  }
-  var Interaction = {
-    modes: {
-      index(chart, e, options, useFinalPosition) {
-        const position = getRelativePosition(e, chart);
-        const axis = options.axis || 'x';
-        const items = options.intersect
-          ? getIntersectItems(chart, position, axis, useFinalPosition)
-          : getNearestItems(chart, position, axis, false, useFinalPosition);
-        const elements = [];
-        if (!items.length) {
-          return [];
-        }
-        chart.getSortedVisibleDatasetMetas().forEach((meta) => {
-          const index = items[0].index;
-          const element = meta.data[index];
-          if (element && !element.skip) {
-            elements.push({element, datasetIndex: meta.index, index});
-          }
-        });
-        return elements;
-      },
-      dataset(chart, e, options, useFinalPosition) {
-        const position = getRelativePosition(e, chart);
-        const axis = options.axis || 'xy';
-        let items = options.intersect
-          ? getIntersectItems(chart, position, axis, useFinalPosition) :
-          getNearestItems(chart, position, axis, false, useFinalPosition);
-        if (items.length > 0) {
-          const datasetIndex = items[0].datasetIndex;
-          const data = chart.getDatasetMeta(datasetIndex).data;
-          items = [];
-          for (let i = 0; i < data.length; ++i) {
-            items.push({element: data[i], datasetIndex, index: i});
-          }
-        }
-        return items;
-      },
-      point(chart, e, options, useFinalPosition) {
-        const position = getRelativePosition(e, chart);
-        const axis = options.axis || 'xy';
-        return getIntersectItems(chart, position, axis, useFinalPosition);
-      },
-      nearest(chart, e, options, useFinalPosition) {
-        const position = getRelativePosition(e, chart);
-        const axis = options.axis || 'xy';
-        return getNearestItems(chart, position, axis, options.intersect, useFinalPosition);
-      },
-      x(chart, e, options, useFinalPosition) {
-        return getAxisItems(chart, e, {axis: 'x', intersect: options.intersect}, useFinalPosition);
-      },
-      y(chart, e, options, useFinalPosition) {
-        return getAxisItems(chart, e, {axis: 'y', intersect: options.intersect}, useFinalPosition);
-      }
-    }
-  };
-
-  const STATIC_POSITIONS = ['left', 'top', 'right', 'bottom'];
-  function filterByPosition(array, position) {
-    return array.filter(v => v.pos === position);
-  }
-  function filterDynamicPositionByAxis(array, axis) {
-    return array.filter(v => STATIC_POSITIONS.indexOf(v.pos) === -1 && v.box.axis === axis);
-  }
-  function sortByWeight(array, reverse) {
-    return array.sort((a, b) => {
-      const v0 = reverse ? b : a;
-      const v1 = reverse ? a : b;
-      return v0.weight === v1.weight ?
-        v0.index - v1.index :
-        v0.weight - v1.weight;
-    });
-  }
-  function wrapBoxes(boxes) {
-    const layoutBoxes = [];
-    let i, ilen, box, pos, stack, stackWeight;
-    for (i = 0, ilen = (boxes || []).length; i < ilen; ++i) {
-      box = boxes[i];
-      ({position: pos, options: {stack, stackWeight = 1}} = box);
-      layoutBoxes.push({
-        index: i,
-        box,
-        pos,
-        horizontal: box.isHorizontal(),
-        weight: box.weight,
-        stack: stack && (pos + stack),
-        stackWeight
-      });
-    }
-    return layoutBoxes;
-  }
-  function buildStacks(layouts) {
-    const stacks = {};
-    for (const wrap of layouts) {
-      const {stack, pos, stackWeight} = wrap;
-      if (!stack || !STATIC_POSITIONS.includes(pos)) {
-        continue;
-      }
-      const _stack = stacks[stack] || (stacks[stack] = {count: 0, placed: 0, weight: 0, size: 0});
-      _stack.count++;
-      _stack.weight += stackWeight;
-    }
-    return stacks;
-  }
-  function setLayoutDims(layouts, params) {
-    const stacks = buildStacks(layouts);
-    const {vBoxMaxWidth, hBoxMaxHeight} = params;
-    let i, ilen, layout;
-    for (i = 0, ilen = layouts.length; i < ilen; ++i) {
-      layout = layouts[i];
-      const {fullSize} = layout.box;
-      const stack = stacks[layout.stack];
-      const factor = stack && layout.stackWeight / stack.weight;
-      if (layout.horizontal) {
-        layout.width = factor ? factor * vBoxMaxWidth : fullSize && params.availableWidth;
-        layout.height = hBoxMaxHeight;
-      } else {
-        layout.width = vBoxMaxWidth;
-        layout.height = factor ? factor * hBoxMaxHeight : fullSize && params.availableHeight;
-      }
-    }
-    return stacks;
-  }
-  function buildLayoutBoxes(boxes) {
-    const layoutBoxes = wrapBoxes(boxes);
-    const fullSize = sortByWeight(layoutBoxes.filter(wrap => wrap.box.fullSize), true);
-    const left = sortByWeight(filterByPosition(layoutBoxes, 'left'), true);
-    const right = sortByWeight(filterByPosition(layoutBoxes, 'right'));
-    const top = sortByWeight(filterByPosition(layoutBoxes, 'top'), true);
-    const bottom = sortByWeight(filterByPosition(layoutBoxes, 'bottom'));
-    const centerHorizontal = filterDynamicPositionByAxis(layoutBoxes, 'x');
-    const centerVertical = filterDynamicPositionByAxis(layoutBoxes, 'y');
-    return {
-      fullSize,
-      leftAndTop: left.concat(top),
-      rightAndBottom: right.concat(centerVertical).concat(bottom).concat(centerHorizontal),
-      chartArea: filterByPosition(layoutBoxes, 'chartArea'),
-      vertical: left.concat(right).concat(centerVertical),
-      horizontal: top.concat(bottom).concat(centerHorizontal)
-    };
-  }
-  function getCombinedMax(maxPadding, chartArea, a, b) {
-    return Math.max(maxPadding[a], chartArea[a]) + Math.max(maxPadding[b], chartArea[b]);
-  }
-  function updateMaxPadding(maxPadding, boxPadding) {
-    maxPadding.top = Math.max(maxPadding.top, boxPadding.top);
-    maxPadding.left = Math.max(maxPadding.left, boxPadding.left);
-    maxPadding.bottom = Math.max(maxPadding.bottom, boxPadding.bottom);
-    maxPadding.right = Math.max(maxPadding.right, boxPadding.right);
-  }
-  function updateDims(chartArea, params, layout, stacks) {
-    const {pos, box} = layout;
-    const maxPadding = chartArea.maxPadding;
-    if (!isObject(pos)) {
-      if (layout.size) {
-        chartArea[pos] -= layout.size;
-      }
-      const stack = stacks[layout.stack] || {size: 0, count: 1};
-      stack.size = Math.max(stack.size, layout.horizontal ? box.height : box.width);
-      layout.size = stack.size / stack.count;
-      chartArea[pos] += layout.size;
-    }
-    if (box.getPadding) {
-      updateMaxPadding(maxPadding, box.getPadding());
-    }
-    const newWidth = Math.max(0, params.outerWidth - getCombinedMax(maxPadding, chartArea, 'left', 'right'));
-    const newHeight = Math.max(0, params.outerHeight - getCombinedMax(maxPadding, chartArea, 'top', 'bottom'));
-    const widthChanged = newWidth !== chartArea.w;
-    const heightChanged = newHeight !== chartArea.h;
-    chartArea.w = newWidth;
-    chartArea.h = newHeight;
-    return layout.horizontal
-      ? {same: widthChanged, other: heightChanged}
-      : {same: heightChanged, other: widthChanged};
-  }
-  function handleMaxPadding(chartArea) {
-    const maxPadding = chartArea.maxPadding;
-    function updatePos(pos) {
-      const change = Math.max(maxPadding[pos] - chartArea[pos], 0);
-      chartArea[pos] += change;
-      return change;
-    }
-    chartArea.y += updatePos('top');
-    chartArea.x += updatePos('left');
-    updatePos('right');
-    updatePos('bottom');
-  }
-  function getMargins(horizontal, chartArea) {
-    const maxPadding = chartArea.maxPadding;
-    function marginForPositions(positions) {
-      const margin = {left: 0, top: 0, right: 0, bottom: 0};
-      positions.forEach((pos) => {
-        margin[pos] = Math.max(chartArea[pos], maxPadding[pos]);
-      });
-      return margin;
-    }
-    return horizontal
-      ? marginForPositions(['left', 'right'])
-      : marginForPositions(['top', 'bottom']);
-  }
-  function fitBoxes(boxes, chartArea, params, stacks) {
-    const refitBoxes = [];
-    let i, ilen, layout, box, refit, changed;
-    for (i = 0, ilen = boxes.length, refit = 0; i < ilen; ++i) {
-      layout = boxes[i];
-      box = layout.box;
-      box.update(
-        layout.width || chartArea.w,
-        layout.height || chartArea.h,
-        getMargins(layout.horizontal, chartArea)
-      );
-      const {same, other} = updateDims(chartArea, params, layout, stacks);
-      refit |= same && refitBoxes.length;
-      changed = changed || other;
-      if (!box.fullSize) {
-        refitBoxes.push(layout);
-      }
-    }
-    return refit && fitBoxes(refitBoxes, chartArea, params, stacks) || changed;
-  }
-  function setBoxDims(box, left, top, width, height) {
-    box.top = top;
-    box.left = left;
-    box.right = left + width;
-    box.bottom = top + height;
-    box.width = width;
-    box.height = height;
-  }
-  function placeBoxes(boxes, chartArea, params, stacks) {
-    const userPadding = params.padding;
-    let {x, y} = chartArea;
-    for (const layout of boxes) {
-      const box = layout.box;
-      const stack = stacks[layout.stack] || {count: 1, placed: 0, weight: 1};
-      const weight = (layout.stackWeight / stack.weight) || 1;
-      if (layout.horizontal) {
-        const width = chartArea.w * weight;
-        const height = stack.size || box.height;
-        if (defined(stack.start)) {
-          y = stack.start;
-        }
-        if (box.fullSize) {
-          setBoxDims(box, userPadding.left, y, params.outerWidth - userPadding.right - userPadding.left, height);
-        } else {
-          setBoxDims(box, chartArea.left + stack.placed, y, width, height);
-        }
-        stack.start = y;
-        stack.placed += width;
-        y = box.bottom;
-      } else {
-        const height = chartArea.h * weight;
-        const width = stack.size || box.width;
-        if (defined(stack.start)) {
-          x = stack.start;
-        }
-        if (box.fullSize) {
-          setBoxDims(box, x, userPadding.top, width, params.outerHeight - userPadding.bottom - userPadding.top);
-        } else {
-          setBoxDims(box, x, chartArea.top + stack.placed, width, height);
-        }
-        stack.start = x;
-        stack.placed += height;
-        x = box.right;
-      }
-    }
-    chartArea.x = x;
-    chartArea.y = y;
-  }
-  defaults.set('layout', {
-    autoPadding: true,
-    padding: {
-      top: 0,
-      right: 0,
-      bottom: 0,
-      left: 0
-    }
-  });
-  var layouts = {
-    addBox(chart, item) {
-      if (!chart.boxes) {
-        chart.boxes = [];
-      }
-      item.fullSize = item.fullSize || false;
-      item.position = item.position || 'top';
-      item.weight = item.weight || 0;
-      item._layers = item._layers || function() {
-        return [{
-          z: 0,
-          draw(chartArea) {
-            item.draw(chartArea);
-          }
-        }];
-      };
-      chart.boxes.push(item);
-    },
-    removeBox(chart, layoutItem) {
-      const index = chart.boxes ? chart.boxes.indexOf(layoutItem) : -1;
-      if (index !== -1) {
-        chart.boxes.splice(index, 1);
-      }
-    },
-    configure(chart, item, options) {
-      item.fullSize = options.fullSize;
-      item.position = options.position;
-      item.weight = options.weight;
-    },
-    update(chart, width, height, minPadding) {
-      if (!chart) {
-        return;
-      }
-      const padding = toPadding(chart.options.layout.padding);
-      const availableWidth = Math.max(width - padding.width, 0);
-      const availableHeight = Math.max(height - padding.height, 0);
-      const boxes = buildLayoutBoxes(chart.boxes);
-      const verticalBoxes = boxes.vertical;
-      const horizontalBoxes = boxes.horizontal;
-      each(chart.boxes, box => {
-        if (typeof box.beforeLayout === 'function') {
-          box.beforeLayout();
-        }
-      });
-      const visibleVerticalBoxCount = verticalBoxes.reduce((total, wrap) =>
-        wrap.box.options && wrap.box.options.display === false ? total : total + 1, 0) || 1;
-      const params = Object.freeze({
-        outerWidth: width,
-        outerHeight: height,
-        padding,
-        availableWidth,
-        availableHeight,
-        vBoxMaxWidth: availableWidth / 2 / visibleVerticalBoxCount,
-        hBoxMaxHeight: availableHeight / 2
-      });
-      const maxPadding = Object.assign({}, padding);
-      updateMaxPadding(maxPadding, toPadding(minPadding));
-      const chartArea = Object.assign({
-        maxPadding,
-        w: availableWidth,
-        h: availableHeight,
-        x: padding.left,
-        y: padding.top
-      }, padding);
-      const stacks = setLayoutDims(verticalBoxes.concat(horizontalBoxes), params);
-      fitBoxes(boxes.fullSize, chartArea, params, stacks);
-      fitBoxes(verticalBoxes, chartArea, params, stacks);
-      if (fitBoxes(horizontalBoxes, chartArea, params, stacks)) {
-        fitBoxes(verticalBoxes, chartArea, params, stacks);
-      }
-      handleMaxPadding(chartArea);
-      placeBoxes(boxes.leftAndTop, chartArea, params, stacks);
-      chartArea.x += chartArea.w;
-      chartArea.y += chartArea.h;
-      placeBoxes(boxes.rightAndBottom, chartArea, params, stacks);
-      chart.chartArea = {
-        left: chartArea.left,
-        top: chartArea.top,
-        right: chartArea.left + chartArea.w,
-        bottom: chartArea.top + chartArea.h,
-        height: chartArea.h,
-        width: chartArea.w,
-      };
-      each(boxes.chartArea, (layout) => {
-        const box = layout.box;
-        Object.assign(box, chart.chartArea);
-        box.update(chartArea.w, chartArea.h, {left: 0, top: 0, right: 0, bottom: 0});
-      });
-    }
-  };
-
-  class BasePlatform {
-    acquireContext(canvas, aspectRatio) {}
-    releaseContext(context) {
-      return false;
-    }
-    addEventListener(chart, type, listener) {}
-    removeEventListener(chart, type, listener) {}
-    getDevicePixelRatio() {
-      return 1;
-    }
-    getMaximumSize(element, width, height, aspectRatio) {
-      width = Math.max(0, width || element.width);
-      height = height || element.height;
-      return {
-        width,
-        height: Math.max(0, aspectRatio ? Math.floor(width / aspectRatio) : height)
-      };
-    }
-    isAttached(canvas) {
-      return true;
-    }
-    updateConfig(config) {
-    }
-  }
-
-  class BasicPlatform extends BasePlatform {
-    acquireContext(item) {
-      return item && item.getContext && item.getContext('2d') || null;
-    }
-    updateConfig(config) {
-      config.options.animation = false;
-    }
-  }
-
-  const EXPANDO_KEY = '$chartjs';
-  const EVENT_TYPES = {
-    touchstart: 'mousedown',
-    touchmove: 'mousemove',
-    touchend: 'mouseup',
-    pointerenter: 'mouseenter',
-    pointerdown: 'mousedown',
-    pointermove: 'mousemove',
-    pointerup: 'mouseup',
-    pointerleave: 'mouseout',
-    pointerout: 'mouseout'
-  };
-  const isNullOrEmpty = value => value === null || value === '';
-  function initCanvas(canvas, aspectRatio) {
-    const style = canvas.style;
-    const renderHeight = canvas.getAttribute('height');
-    const renderWidth = canvas.getAttribute('width');
-    canvas[EXPANDO_KEY] = {
-      initial: {
-        height: renderHeight,
-        width: renderWidth,
-        style: {
-          display: style.display,
-          height: style.height,
-          width: style.width
-        }
-      }
-    };
-    style.display = style.display || 'block';
-    style.boxSizing = style.boxSizing || 'border-box';
-    if (isNullOrEmpty(renderWidth)) {
-      const displayWidth = readUsedSize(canvas, 'width');
-      if (displayWidth !== undefined) {
-        canvas.width = displayWidth;
-      }
-    }
-    if (isNullOrEmpty(renderHeight)) {
-      if (canvas.style.height === '') {
-        canvas.height = canvas.width / (aspectRatio || 2);
-      } else {
-        const displayHeight = readUsedSize(canvas, 'height');
-        if (displayHeight !== undefined) {
-          canvas.height = displayHeight;
-        }
-      }
-    }
-    return canvas;
-  }
-  const eventListenerOptions = supportsEventListenerOptions ? {passive: true} : false;
-  function addListener(node, type, listener) {
-    node.addEventListener(type, listener, eventListenerOptions);
-  }
-  function removeListener(chart, type, listener) {
-    chart.canvas.removeEventListener(type, listener, eventListenerOptions);
-  }
-  function fromNativeEvent(event, chart) {
-    const type = EVENT_TYPES[event.type] || event.type;
-    const {x, y} = getRelativePosition$1(event, chart);
-    return {
-      type,
-      chart,
-      native: event,
-      x: x !== undefined ? x : null,
-      y: y !== undefined ? y : null,
-    };
-  }
-  function nodeListContains(nodeList, canvas) {
-    for (const node of nodeList) {
-      if (node === canvas || node.contains(canvas)) {
-        return true;
-      }
-    }
-  }
-  function createAttachObserver(chart, type, listener) {
-    const canvas = chart.canvas;
-    const observer = new MutationObserver(entries => {
-      let trigger = false;
-      for (const entry of entries) {
-        trigger = trigger || nodeListContains(entry.addedNodes, canvas);
-        trigger = trigger && !nodeListContains(entry.removedNodes, canvas);
-      }
-      if (trigger) {
-        listener();
-      }
-    });
-    observer.observe(document, {childList: true, subtree: true});
-    return observer;
-  }
-  function createDetachObserver(chart, type, listener) {
-    const canvas = chart.canvas;
-    const observer = new MutationObserver(entries => {
-      let trigger = false;
-      for (const entry of entries) {
-        trigger = trigger || nodeListContains(entry.removedNodes, canvas);
-        trigger = trigger && !nodeListContains(entry.addedNodes, canvas);
-      }
-      if (trigger) {
-        listener();
-      }
-    });
-    observer.observe(document, {childList: true, subtree: true});
-    return observer;
-  }
-  const drpListeningCharts = new Map();
-  let oldDevicePixelRatio = 0;
-  function onWindowResize() {
-    const dpr = window.devicePixelRatio;
-    if (dpr === oldDevicePixelRatio) {
-      return;
-    }
-    oldDevicePixelRatio = dpr;
-    drpListeningCharts.forEach((resize, chart) => {
-      if (chart.currentDevicePixelRatio !== dpr) {
-        resize();
-      }
-    });
-  }
-  function listenDevicePixelRatioChanges(chart, resize) {
-    if (!drpListeningCharts.size) {
-      window.addEventListener('resize', onWindowResize);
-    }
-    drpListeningCharts.set(chart, resize);
-  }
-  function unlistenDevicePixelRatioChanges(chart) {
-    drpListeningCharts.delete(chart);
-    if (!drpListeningCharts.size) {
-      window.removeEventListener('resize', onWindowResize);
-    }
-  }
-  function createResizeObserver(chart, type, listener) {
-    const canvas = chart.canvas;
-    const container = canvas && _getParentNode(canvas);
-    if (!container) {
-      return;
-    }
-    const resize = throttled((width, height) => {
-      const w = container.clientWidth;
-      listener(width, height);
-      if (w < container.clientWidth) {
-        listener();
-      }
-    }, window);
-    const observer = new ResizeObserver(entries => {
-      const entry = entries[0];
-      const width = entry.contentRect.width;
-      const height = entry.contentRect.height;
-      if (width === 0 && height === 0) {
-        return;
-      }
-      resize(width, height);
-    });
-    observer.observe(container);
-    listenDevicePixelRatioChanges(chart, resize);
-    return observer;
-  }
-  function releaseObserver(chart, type, observer) {
-    if (observer) {
-      observer.disconnect();
-    }
-    if (type === 'resize') {
-      unlistenDevicePixelRatioChanges(chart);
-    }
-  }
-  function createProxyAndListen(chart, type, listener) {
-    const canvas = chart.canvas;
-    const proxy = throttled((event) => {
-      if (chart.ctx !== null) {
-        listener(fromNativeEvent(event, chart));
-      }
-    }, chart, (args) => {
-      const event = args[0];
-      return [event, event.offsetX, event.offsetY];
-    });
-    addListener(canvas, type, proxy);
-    return proxy;
-  }
-  class DomPlatform extends BasePlatform {
-    acquireContext(canvas, aspectRatio) {
-      const context = canvas && canvas.getContext && canvas.getContext('2d');
-      if (context && context.canvas === canvas) {
-        initCanvas(canvas, aspectRatio);
-        return context;
-      }
-      return null;
-    }
-    releaseContext(context) {
-      const canvas = context.canvas;
-      if (!canvas[EXPANDO_KEY]) {
-        return false;
-      }
-      const initial = canvas[EXPANDO_KEY].initial;
-      ['height', 'width'].forEach((prop) => {
-        const value = initial[prop];
-        if (isNullOrUndef(value)) {
-          canvas.removeAttribute(prop);
-        } else {
-          canvas.setAttribute(prop, value);
-        }
-      });
-      const style = initial.style || {};
-      Object.keys(style).forEach((key) => {
-        canvas.style[key] = style[key];
-      });
-      canvas.width = canvas.width;
-      delete canvas[EXPANDO_KEY];
-      return true;
-    }
-    addEventListener(chart, type, listener) {
-      this.removeEventListener(chart, type);
-      const proxies = chart.$proxies || (chart.$proxies = {});
-      const handlers = {
-        attach: createAttachObserver,
-        detach: createDetachObserver,
-        resize: createResizeObserver
-      };
-      const handler = handlers[type] || createProxyAndListen;
-      proxies[type] = handler(chart, type, listener);
-    }
-    removeEventListener(chart, type) {
-      const proxies = chart.$proxies || (chart.$proxies = {});
-      const proxy = proxies[type];
-      if (!proxy) {
-        return;
-      }
-      const handlers = {
-        attach: releaseObserver,
-        detach: releaseObserver,
-        resize: releaseObserver
-      };
-      const handler = handlers[type] || removeListener;
-      handler(chart, type, proxy);
-      proxies[type] = undefined;
-    }
-    getDevicePixelRatio() {
-      return window.devicePixelRatio;
-    }
-    getMaximumSize(canvas, width, height, aspectRatio) {
-      return getMaximumSize(canvas, width, height, aspectRatio);
-    }
-    isAttached(canvas) {
-      const container = _getParentNode(canvas);
-      return !!(container && container.isConnected);
-    }
-  }
-
-  function _detectPlatform(canvas) {
-    if (!_isDomSupported() || (typeof OffscreenCanvas !== 'undefined' && canvas instanceof OffscreenCanvas)) {
-      return BasicPlatform;
-    }
-    return DomPlatform;
-  }
 
   class Element {
     constructor() {
@@ -6364,6 +5582,7 @@
       if (tickOpts.display && (tickOpts.autoSkip || tickOpts.source === 'auto')) {
         this.ticks = autoSkip(this, this.ticks);
         this._labelSizes = null;
+        this.afterAutoSkip();
       }
       if (samplingEnabled) {
         this._convertTicksToLabels(this.ticks);
@@ -6484,6 +5703,7 @@
     afterCalculateLabelRotation() {
       callback(this.options.afterCalculateLabelRotation, [this]);
     }
+    afterAutoSkip() {}
     beforeFit() {
       callback(this.options.beforeFit, [this]);
     }
@@ -6550,7 +5770,7 @@
           paddingRight = last.width;
         } else if (align === 'end') {
           paddingLeft = first.width;
-        } else {
+        } else if (align !== 'inner') {
           paddingLeft = first.width / 2;
           paddingRight = last.width / 2;
         }
@@ -6795,7 +6015,7 @@
         const optsAtIndex = grid.setContext(this.getContext(i));
         const lineWidth = optsAtIndex.lineWidth;
         const lineColor = optsAtIndex.color;
-        const borderDash = grid.borderDash || [];
+        const borderDash = optsAtIndex.borderDash || [];
         const borderDashOffset = optsAtIndex.borderDashOffset;
         const tickWidth = optsAtIndex.tickWidth;
         const tickColor = optsAtIndex.tickColor;
@@ -6901,8 +6121,18 @@
         const color = optsAtIndex.color;
         const strokeColor = optsAtIndex.textStrokeColor;
         const strokeWidth = optsAtIndex.textStrokeWidth;
+        let tickTextAlign = textAlign;
         if (isHorizontal) {
           x = pixel;
+          if (textAlign === 'inner') {
+            if (i === ilen - 1) {
+              tickTextAlign = !this.options.reverse ? 'right' : 'left';
+            } else if (i === 0) {
+              tickTextAlign = !this.options.reverse ? 'left' : 'right';
+            } else {
+              tickTextAlign = 'center';
+            }
+          }
           if (position === 'top') {
             if (crossAlign === 'near' || rotation !== 0) {
               textOffset = -lineCount * lineHeight + lineHeight / 2;
@@ -6966,7 +6196,7 @@
           strokeColor,
           strokeWidth,
           textOffset,
-          textAlign,
+          textAlign: tickTextAlign,
           textBaseline,
           translation: [x, y],
           backdrop,
@@ -6985,6 +6215,8 @@
         align = 'left';
       } else if (ticks.align === 'end') {
         align = 'right';
+      } else if (ticks.align === 'inner') {
+        align = 'inner';
       }
       return align;
     }
@@ -7440,6 +6672,955 @@
   }
   var registry = new Registry();
 
+  class ScatterController extends DatasetController {
+    update(mode) {
+      const meta = this._cachedMeta;
+      const {data: points = []} = meta;
+      const animationsDisabled = this.chart._animationsDisabled;
+      let {start, count} = _getStartAndCountOfVisiblePoints(meta, points, animationsDisabled);
+      this._drawStart = start;
+      this._drawCount = count;
+      if (_scaleRangesChanged(meta)) {
+        start = 0;
+        count = points.length;
+      }
+      if (this.options.showLine) {
+        const {dataset: line, _dataset} = meta;
+        line._chart = this.chart;
+        line._datasetIndex = this.index;
+        line._decimated = !!_dataset._decimated;
+        line.points = points;
+        const options = this.resolveDatasetElementOptions(mode);
+        options.segment = this.options.segment;
+        this.updateElement(line, undefined, {
+          animated: !animationsDisabled,
+          options
+        }, mode);
+      }
+      this.updateElements(points, start, count, mode);
+    }
+    addElements() {
+      const {showLine} = this.options;
+      if (!this.datasetElementType && showLine) {
+        this.datasetElementType = registry.getElement('line');
+      }
+      super.addElements();
+    }
+    updateElements(points, start, count, mode) {
+      const reset = mode === 'reset';
+      const {iScale, vScale, _stacked, _dataset} = this._cachedMeta;
+      const firstOpts = this.resolveDataElementOptions(start, mode);
+      const sharedOptions = this.getSharedOptions(firstOpts);
+      const includeOptions = this.includeOptions(mode, sharedOptions);
+      const iAxis = iScale.axis;
+      const vAxis = vScale.axis;
+      const {spanGaps, segment} = this.options;
+      const maxGapLength = isNumber(spanGaps) ? spanGaps : Number.POSITIVE_INFINITY;
+      const directUpdate = this.chart._animationsDisabled || reset || mode === 'none';
+      let prevParsed = start > 0 && this.getParsed(start - 1);
+      for (let i = start; i < start + count; ++i) {
+        const point = points[i];
+        const parsed = this.getParsed(i);
+        const properties = directUpdate ? point : {};
+        const nullData = isNullOrUndef(parsed[vAxis]);
+        const iPixel = properties[iAxis] = iScale.getPixelForValue(parsed[iAxis], i);
+        const vPixel = properties[vAxis] = reset || nullData ? vScale.getBasePixel() : vScale.getPixelForValue(_stacked ? this.applyStack(vScale, parsed, _stacked) : parsed[vAxis], i);
+        properties.skip = isNaN(iPixel) || isNaN(vPixel) || nullData;
+        properties.stop = i > 0 && (Math.abs(parsed[iAxis] - prevParsed[iAxis])) > maxGapLength;
+        if (segment) {
+          properties.parsed = parsed;
+          properties.raw = _dataset.data[i];
+        }
+        if (includeOptions) {
+          properties.options = sharedOptions || this.resolveDataElementOptions(i, point.active ? 'active' : mode);
+        }
+        if (!directUpdate) {
+          this.updateElement(point, i, properties, mode);
+        }
+        prevParsed = parsed;
+      }
+      this.updateSharedOptions(sharedOptions, mode, firstOpts);
+    }
+    getMaxOverflow() {
+      const meta = this._cachedMeta;
+      const data = meta.data || [];
+      if (!this.options.showLine) {
+        let max = 0;
+        for (let i = data.length - 1; i >= 0; --i) {
+          max = Math.max(max, data[i].size(this.resolveDataElementOptions(i)) / 2);
+        }
+        return max > 0 && max;
+      }
+      const dataset = meta.dataset;
+      const border = dataset.options && dataset.options.borderWidth || 0;
+      if (!data.length) {
+        return border;
+      }
+      const firstPoint = data[0].size(this.resolveDataElementOptions(0));
+      const lastPoint = data[data.length - 1].size(this.resolveDataElementOptions(data.length - 1));
+      return Math.max(border, firstPoint, lastPoint) / 2;
+    }
+  }
+  ScatterController.id = 'scatter';
+  ScatterController.defaults = {
+    datasetElementType: false,
+    dataElementType: 'point',
+    showLine: false,
+    fill: false
+  };
+  ScatterController.overrides = {
+    interaction: {
+      mode: 'point'
+    },
+    plugins: {
+      tooltip: {
+        callbacks: {
+          title() {
+            return '';
+          },
+          label(item) {
+            return '(' + item.label + ', ' + item.formattedValue + ')';
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        type: 'linear'
+      },
+      y: {
+        type: 'linear'
+      }
+    }
+  };
+
+  var controllers = /*#__PURE__*/Object.freeze({
+  __proto__: null,
+  BarController: BarController,
+  BubbleController: BubbleController,
+  DoughnutController: DoughnutController,
+  LineController: LineController,
+  PolarAreaController: PolarAreaController,
+  PieController: PieController,
+  RadarController: RadarController,
+  ScatterController: ScatterController
+  });
+
+  function abstract() {
+    throw new Error('This method is not implemented: Check that a complete date adapter is provided.');
+  }
+  class DateAdapter {
+    constructor(options) {
+      this.options = options || {};
+    }
+    init(chartOptions) {}
+    formats() {
+      return abstract();
+    }
+    parse(value, format) {
+      return abstract();
+    }
+    format(timestamp, format) {
+      return abstract();
+    }
+    add(timestamp, amount, unit) {
+      return abstract();
+    }
+    diff(a, b, unit) {
+      return abstract();
+    }
+    startOf(timestamp, unit, weekday) {
+      return abstract();
+    }
+    endOf(timestamp, unit) {
+      return abstract();
+    }
+  }
+  DateAdapter.override = function(members) {
+    Object.assign(DateAdapter.prototype, members);
+  };
+  var adapters = {
+    _date: DateAdapter
+  };
+
+  function binarySearch(metaset, axis, value, intersect) {
+    const {controller, data, _sorted} = metaset;
+    const iScale = controller._cachedMeta.iScale;
+    if (iScale && axis === iScale.axis && axis !== 'r' && _sorted && data.length) {
+      const lookupMethod = iScale._reversePixels ? _rlookupByKey : _lookupByKey;
+      if (!intersect) {
+        return lookupMethod(data, axis, value);
+      } else if (controller._sharedOptions) {
+        const el = data[0];
+        const range = typeof el.getRange === 'function' && el.getRange(axis);
+        if (range) {
+          const start = lookupMethod(data, axis, value - range);
+          const end = lookupMethod(data, axis, value + range);
+          return {lo: start.lo, hi: end.hi};
+        }
+      }
+    }
+    return {lo: 0, hi: data.length - 1};
+  }
+  function evaluateInteractionItems(chart, axis, position, handler, intersect) {
+    const metasets = chart.getSortedVisibleDatasetMetas();
+    const value = position[axis];
+    for (let i = 0, ilen = metasets.length; i < ilen; ++i) {
+      const {index, data} = metasets[i];
+      const {lo, hi} = binarySearch(metasets[i], axis, value, intersect);
+      for (let j = lo; j <= hi; ++j) {
+        const element = data[j];
+        if (!element.skip) {
+          handler(element, index, j);
+        }
+      }
+    }
+  }
+  function getDistanceMetricForAxis(axis) {
+    const useX = axis.indexOf('x') !== -1;
+    const useY = axis.indexOf('y') !== -1;
+    return function(pt1, pt2) {
+      const deltaX = useX ? Math.abs(pt1.x - pt2.x) : 0;
+      const deltaY = useY ? Math.abs(pt1.y - pt2.y) : 0;
+      return Math.sqrt(Math.pow(deltaX, 2) + Math.pow(deltaY, 2));
+    };
+  }
+  function getIntersectItems(chart, position, axis, useFinalPosition, includeInvisible) {
+    const items = [];
+    if (!includeInvisible && !chart.isPointInArea(position)) {
+      return items;
+    }
+    const evaluationFunc = function(element, datasetIndex, index) {
+      if (!includeInvisible && !_isPointInArea(element, chart.chartArea, 0)) {
+        return;
+      }
+      if (element.inRange(position.x, position.y, useFinalPosition)) {
+        items.push({element, datasetIndex, index});
+      }
+    };
+    evaluateInteractionItems(chart, axis, position, evaluationFunc, true);
+    return items;
+  }
+  function getNearestRadialItems(chart, position, axis, useFinalPosition) {
+    let items = [];
+    function evaluationFunc(element, datasetIndex, index) {
+      const {startAngle, endAngle} = element.getProps(['startAngle', 'endAngle'], useFinalPosition);
+      const {angle} = getAngleFromPoint(element, {x: position.x, y: position.y});
+      if (_angleBetween(angle, startAngle, endAngle)) {
+        items.push({element, datasetIndex, index});
+      }
+    }
+    evaluateInteractionItems(chart, axis, position, evaluationFunc);
+    return items;
+  }
+  function getNearestCartesianItems(chart, position, axis, intersect, useFinalPosition, includeInvisible) {
+    let items = [];
+    const distanceMetric = getDistanceMetricForAxis(axis);
+    let minDistance = Number.POSITIVE_INFINITY;
+    function evaluationFunc(element, datasetIndex, index) {
+      const inRange = element.inRange(position.x, position.y, useFinalPosition);
+      if (intersect && !inRange) {
+        return;
+      }
+      const center = element.getCenterPoint(useFinalPosition);
+      const pointInArea = !!includeInvisible || chart.isPointInArea(center);
+      if (!pointInArea && !inRange) {
+        return;
+      }
+      const distance = distanceMetric(position, center);
+      if (distance < minDistance) {
+        items = [{element, datasetIndex, index}];
+        minDistance = distance;
+      } else if (distance === minDistance) {
+        items.push({element, datasetIndex, index});
+      }
+    }
+    evaluateInteractionItems(chart, axis, position, evaluationFunc);
+    return items;
+  }
+  function getNearestItems(chart, position, axis, intersect, useFinalPosition, includeInvisible) {
+    if (!includeInvisible && !chart.isPointInArea(position)) {
+      return [];
+    }
+    return axis === 'r' && !intersect
+      ? getNearestRadialItems(chart, position, axis, useFinalPosition)
+      : getNearestCartesianItems(chart, position, axis, intersect, useFinalPosition, includeInvisible);
+  }
+  function getAxisItems(chart, position, axis, intersect, useFinalPosition) {
+    const items = [];
+    const rangeMethod = axis === 'x' ? 'inXRange' : 'inYRange';
+    let intersectsItem = false;
+    evaluateInteractionItems(chart, axis, position, (element, datasetIndex, index) => {
+      if (element[rangeMethod](position[axis], useFinalPosition)) {
+        items.push({element, datasetIndex, index});
+        intersectsItem = intersectsItem || element.inRange(position.x, position.y, useFinalPosition);
+      }
+    });
+    if (intersect && !intersectsItem) {
+      return [];
+    }
+    return items;
+  }
+  var Interaction = {
+    evaluateInteractionItems,
+    modes: {
+      index(chart, e, options, useFinalPosition) {
+        const position = getRelativePosition(e, chart);
+        const axis = options.axis || 'x';
+        const includeInvisible = options.includeInvisible || false;
+        const items = options.intersect
+          ? getIntersectItems(chart, position, axis, useFinalPosition, includeInvisible)
+          : getNearestItems(chart, position, axis, false, useFinalPosition, includeInvisible);
+        const elements = [];
+        if (!items.length) {
+          return [];
+        }
+        chart.getSortedVisibleDatasetMetas().forEach((meta) => {
+          const index = items[0].index;
+          const element = meta.data[index];
+          if (element && !element.skip) {
+            elements.push({element, datasetIndex: meta.index, index});
+          }
+        });
+        return elements;
+      },
+      dataset(chart, e, options, useFinalPosition) {
+        const position = getRelativePosition(e, chart);
+        const axis = options.axis || 'xy';
+        const includeInvisible = options.includeInvisible || false;
+        let items = options.intersect
+          ? getIntersectItems(chart, position, axis, useFinalPosition, includeInvisible) :
+          getNearestItems(chart, position, axis, false, useFinalPosition, includeInvisible);
+        if (items.length > 0) {
+          const datasetIndex = items[0].datasetIndex;
+          const data = chart.getDatasetMeta(datasetIndex).data;
+          items = [];
+          for (let i = 0; i < data.length; ++i) {
+            items.push({element: data[i], datasetIndex, index: i});
+          }
+        }
+        return items;
+      },
+      point(chart, e, options, useFinalPosition) {
+        const position = getRelativePosition(e, chart);
+        const axis = options.axis || 'xy';
+        const includeInvisible = options.includeInvisible || false;
+        return getIntersectItems(chart, position, axis, useFinalPosition, includeInvisible);
+      },
+      nearest(chart, e, options, useFinalPosition) {
+        const position = getRelativePosition(e, chart);
+        const axis = options.axis || 'xy';
+        const includeInvisible = options.includeInvisible || false;
+        return getNearestItems(chart, position, axis, options.intersect, useFinalPosition, includeInvisible);
+      },
+      x(chart, e, options, useFinalPosition) {
+        const position = getRelativePosition(e, chart);
+        return getAxisItems(chart, position, 'x', options.intersect, useFinalPosition);
+      },
+      y(chart, e, options, useFinalPosition) {
+        const position = getRelativePosition(e, chart);
+        return getAxisItems(chart, position, 'y', options.intersect, useFinalPosition);
+      }
+    }
+  };
+
+  const STATIC_POSITIONS = ['left', 'top', 'right', 'bottom'];
+  function filterByPosition(array, position) {
+    return array.filter(v => v.pos === position);
+  }
+  function filterDynamicPositionByAxis(array, axis) {
+    return array.filter(v => STATIC_POSITIONS.indexOf(v.pos) === -1 && v.box.axis === axis);
+  }
+  function sortByWeight(array, reverse) {
+    return array.sort((a, b) => {
+      const v0 = reverse ? b : a;
+      const v1 = reverse ? a : b;
+      return v0.weight === v1.weight ?
+        v0.index - v1.index :
+        v0.weight - v1.weight;
+    });
+  }
+  function wrapBoxes(boxes) {
+    const layoutBoxes = [];
+    let i, ilen, box, pos, stack, stackWeight;
+    for (i = 0, ilen = (boxes || []).length; i < ilen; ++i) {
+      box = boxes[i];
+      ({position: pos, options: {stack, stackWeight = 1}} = box);
+      layoutBoxes.push({
+        index: i,
+        box,
+        pos,
+        horizontal: box.isHorizontal(),
+        weight: box.weight,
+        stack: stack && (pos + stack),
+        stackWeight
+      });
+    }
+    return layoutBoxes;
+  }
+  function buildStacks(layouts) {
+    const stacks = {};
+    for (const wrap of layouts) {
+      const {stack, pos, stackWeight} = wrap;
+      if (!stack || !STATIC_POSITIONS.includes(pos)) {
+        continue;
+      }
+      const _stack = stacks[stack] || (stacks[stack] = {count: 0, placed: 0, weight: 0, size: 0});
+      _stack.count++;
+      _stack.weight += stackWeight;
+    }
+    return stacks;
+  }
+  function setLayoutDims(layouts, params) {
+    const stacks = buildStacks(layouts);
+    const {vBoxMaxWidth, hBoxMaxHeight} = params;
+    let i, ilen, layout;
+    for (i = 0, ilen = layouts.length; i < ilen; ++i) {
+      layout = layouts[i];
+      const {fullSize} = layout.box;
+      const stack = stacks[layout.stack];
+      const factor = stack && layout.stackWeight / stack.weight;
+      if (layout.horizontal) {
+        layout.width = factor ? factor * vBoxMaxWidth : fullSize && params.availableWidth;
+        layout.height = hBoxMaxHeight;
+      } else {
+        layout.width = vBoxMaxWidth;
+        layout.height = factor ? factor * hBoxMaxHeight : fullSize && params.availableHeight;
+      }
+    }
+    return stacks;
+  }
+  function buildLayoutBoxes(boxes) {
+    const layoutBoxes = wrapBoxes(boxes);
+    const fullSize = sortByWeight(layoutBoxes.filter(wrap => wrap.box.fullSize), true);
+    const left = sortByWeight(filterByPosition(layoutBoxes, 'left'), true);
+    const right = sortByWeight(filterByPosition(layoutBoxes, 'right'));
+    const top = sortByWeight(filterByPosition(layoutBoxes, 'top'), true);
+    const bottom = sortByWeight(filterByPosition(layoutBoxes, 'bottom'));
+    const centerHorizontal = filterDynamicPositionByAxis(layoutBoxes, 'x');
+    const centerVertical = filterDynamicPositionByAxis(layoutBoxes, 'y');
+    return {
+      fullSize,
+      leftAndTop: left.concat(top),
+      rightAndBottom: right.concat(centerVertical).concat(bottom).concat(centerHorizontal),
+      chartArea: filterByPosition(layoutBoxes, 'chartArea'),
+      vertical: left.concat(right).concat(centerVertical),
+      horizontal: top.concat(bottom).concat(centerHorizontal)
+    };
+  }
+  function getCombinedMax(maxPadding, chartArea, a, b) {
+    return Math.max(maxPadding[a], chartArea[a]) + Math.max(maxPadding[b], chartArea[b]);
+  }
+  function updateMaxPadding(maxPadding, boxPadding) {
+    maxPadding.top = Math.max(maxPadding.top, boxPadding.top);
+    maxPadding.left = Math.max(maxPadding.left, boxPadding.left);
+    maxPadding.bottom = Math.max(maxPadding.bottom, boxPadding.bottom);
+    maxPadding.right = Math.max(maxPadding.right, boxPadding.right);
+  }
+  function updateDims(chartArea, params, layout, stacks) {
+    const {pos, box} = layout;
+    const maxPadding = chartArea.maxPadding;
+    if (!isObject(pos)) {
+      if (layout.size) {
+        chartArea[pos] -= layout.size;
+      }
+      const stack = stacks[layout.stack] || {size: 0, count: 1};
+      stack.size = Math.max(stack.size, layout.horizontal ? box.height : box.width);
+      layout.size = stack.size / stack.count;
+      chartArea[pos] += layout.size;
+    }
+    if (box.getPadding) {
+      updateMaxPadding(maxPadding, box.getPadding());
+    }
+    const newWidth = Math.max(0, params.outerWidth - getCombinedMax(maxPadding, chartArea, 'left', 'right'));
+    const newHeight = Math.max(0, params.outerHeight - getCombinedMax(maxPadding, chartArea, 'top', 'bottom'));
+    const widthChanged = newWidth !== chartArea.w;
+    const heightChanged = newHeight !== chartArea.h;
+    chartArea.w = newWidth;
+    chartArea.h = newHeight;
+    return layout.horizontal
+      ? {same: widthChanged, other: heightChanged}
+      : {same: heightChanged, other: widthChanged};
+  }
+  function handleMaxPadding(chartArea) {
+    const maxPadding = chartArea.maxPadding;
+    function updatePos(pos) {
+      const change = Math.max(maxPadding[pos] - chartArea[pos], 0);
+      chartArea[pos] += change;
+      return change;
+    }
+    chartArea.y += updatePos('top');
+    chartArea.x += updatePos('left');
+    updatePos('right');
+    updatePos('bottom');
+  }
+  function getMargins(horizontal, chartArea) {
+    const maxPadding = chartArea.maxPadding;
+    function marginForPositions(positions) {
+      const margin = {left: 0, top: 0, right: 0, bottom: 0};
+      positions.forEach((pos) => {
+        margin[pos] = Math.max(chartArea[pos], maxPadding[pos]);
+      });
+      return margin;
+    }
+    return horizontal
+      ? marginForPositions(['left', 'right'])
+      : marginForPositions(['top', 'bottom']);
+  }
+  function fitBoxes(boxes, chartArea, params, stacks) {
+    const refitBoxes = [];
+    let i, ilen, layout, box, refit, changed;
+    for (i = 0, ilen = boxes.length, refit = 0; i < ilen; ++i) {
+      layout = boxes[i];
+      box = layout.box;
+      box.update(
+        layout.width || chartArea.w,
+        layout.height || chartArea.h,
+        getMargins(layout.horizontal, chartArea)
+      );
+      const {same, other} = updateDims(chartArea, params, layout, stacks);
+      refit |= same && refitBoxes.length;
+      changed = changed || other;
+      if (!box.fullSize) {
+        refitBoxes.push(layout);
+      }
+    }
+    return refit && fitBoxes(refitBoxes, chartArea, params, stacks) || changed;
+  }
+  function setBoxDims(box, left, top, width, height) {
+    box.top = top;
+    box.left = left;
+    box.right = left + width;
+    box.bottom = top + height;
+    box.width = width;
+    box.height = height;
+  }
+  function placeBoxes(boxes, chartArea, params, stacks) {
+    const userPadding = params.padding;
+    let {x, y} = chartArea;
+    for (const layout of boxes) {
+      const box = layout.box;
+      const stack = stacks[layout.stack] || {count: 1, placed: 0, weight: 1};
+      const weight = (layout.stackWeight / stack.weight) || 1;
+      if (layout.horizontal) {
+        const width = chartArea.w * weight;
+        const height = stack.size || box.height;
+        if (defined(stack.start)) {
+          y = stack.start;
+        }
+        if (box.fullSize) {
+          setBoxDims(box, userPadding.left, y, params.outerWidth - userPadding.right - userPadding.left, height);
+        } else {
+          setBoxDims(box, chartArea.left + stack.placed, y, width, height);
+        }
+        stack.start = y;
+        stack.placed += width;
+        y = box.bottom;
+      } else {
+        const height = chartArea.h * weight;
+        const width = stack.size || box.width;
+        if (defined(stack.start)) {
+          x = stack.start;
+        }
+        if (box.fullSize) {
+          setBoxDims(box, x, userPadding.top, width, params.outerHeight - userPadding.bottom - userPadding.top);
+        } else {
+          setBoxDims(box, x, chartArea.top + stack.placed, width, height);
+        }
+        stack.start = x;
+        stack.placed += height;
+        x = box.right;
+      }
+    }
+    chartArea.x = x;
+    chartArea.y = y;
+  }
+  defaults.set('layout', {
+    autoPadding: true,
+    padding: {
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0
+    }
+  });
+  var layouts = {
+    addBox(chart, item) {
+      if (!chart.boxes) {
+        chart.boxes = [];
+      }
+      item.fullSize = item.fullSize || false;
+      item.position = item.position || 'top';
+      item.weight = item.weight || 0;
+      item._layers = item._layers || function() {
+        return [{
+          z: 0,
+          draw(chartArea) {
+            item.draw(chartArea);
+          }
+        }];
+      };
+      chart.boxes.push(item);
+    },
+    removeBox(chart, layoutItem) {
+      const index = chart.boxes ? chart.boxes.indexOf(layoutItem) : -1;
+      if (index !== -1) {
+        chart.boxes.splice(index, 1);
+      }
+    },
+    configure(chart, item, options) {
+      item.fullSize = options.fullSize;
+      item.position = options.position;
+      item.weight = options.weight;
+    },
+    update(chart, width, height, minPadding) {
+      if (!chart) {
+        return;
+      }
+      const padding = toPadding(chart.options.layout.padding);
+      const availableWidth = Math.max(width - padding.width, 0);
+      const availableHeight = Math.max(height - padding.height, 0);
+      const boxes = buildLayoutBoxes(chart.boxes);
+      const verticalBoxes = boxes.vertical;
+      const horizontalBoxes = boxes.horizontal;
+      each(chart.boxes, box => {
+        if (typeof box.beforeLayout === 'function') {
+          box.beforeLayout();
+        }
+      });
+      const visibleVerticalBoxCount = verticalBoxes.reduce((total, wrap) =>
+        wrap.box.options && wrap.box.options.display === false ? total : total + 1, 0) || 1;
+      const params = Object.freeze({
+        outerWidth: width,
+        outerHeight: height,
+        padding,
+        availableWidth,
+        availableHeight,
+        vBoxMaxWidth: availableWidth / 2 / visibleVerticalBoxCount,
+        hBoxMaxHeight: availableHeight / 2
+      });
+      const maxPadding = Object.assign({}, padding);
+      updateMaxPadding(maxPadding, toPadding(minPadding));
+      const chartArea = Object.assign({
+        maxPadding,
+        w: availableWidth,
+        h: availableHeight,
+        x: padding.left,
+        y: padding.top
+      }, padding);
+      const stacks = setLayoutDims(verticalBoxes.concat(horizontalBoxes), params);
+      fitBoxes(boxes.fullSize, chartArea, params, stacks);
+      fitBoxes(verticalBoxes, chartArea, params, stacks);
+      if (fitBoxes(horizontalBoxes, chartArea, params, stacks)) {
+        fitBoxes(verticalBoxes, chartArea, params, stacks);
+      }
+      handleMaxPadding(chartArea);
+      placeBoxes(boxes.leftAndTop, chartArea, params, stacks);
+      chartArea.x += chartArea.w;
+      chartArea.y += chartArea.h;
+      placeBoxes(boxes.rightAndBottom, chartArea, params, stacks);
+      chart.chartArea = {
+        left: chartArea.left,
+        top: chartArea.top,
+        right: chartArea.left + chartArea.w,
+        bottom: chartArea.top + chartArea.h,
+        height: chartArea.h,
+        width: chartArea.w,
+      };
+      each(boxes.chartArea, (layout) => {
+        const box = layout.box;
+        Object.assign(box, chart.chartArea);
+        box.update(chartArea.w, chartArea.h, {left: 0, top: 0, right: 0, bottom: 0});
+      });
+    }
+  };
+
+  class BasePlatform {
+    acquireContext(canvas, aspectRatio) {}
+    releaseContext(context) {
+      return false;
+    }
+    addEventListener(chart, type, listener) {}
+    removeEventListener(chart, type, listener) {}
+    getDevicePixelRatio() {
+      return 1;
+    }
+    getMaximumSize(element, width, height, aspectRatio) {
+      width = Math.max(0, width || element.width);
+      height = height || element.height;
+      return {
+        width,
+        height: Math.max(0, aspectRatio ? Math.floor(width / aspectRatio) : height)
+      };
+    }
+    isAttached(canvas) {
+      return true;
+    }
+    updateConfig(config) {
+    }
+  }
+
+  class BasicPlatform extends BasePlatform {
+    acquireContext(item) {
+      return item && item.getContext && item.getContext('2d') || null;
+    }
+    updateConfig(config) {
+      config.options.animation = false;
+    }
+  }
+
+  const EXPANDO_KEY = '$chartjs';
+  const EVENT_TYPES = {
+    touchstart: 'mousedown',
+    touchmove: 'mousemove',
+    touchend: 'mouseup',
+    pointerenter: 'mouseenter',
+    pointerdown: 'mousedown',
+    pointermove: 'mousemove',
+    pointerup: 'mouseup',
+    pointerleave: 'mouseout',
+    pointerout: 'mouseout'
+  };
+  const isNullOrEmpty = value => value === null || value === '';
+  function initCanvas(canvas, aspectRatio) {
+    const style = canvas.style;
+    const renderHeight = canvas.getAttribute('height');
+    const renderWidth = canvas.getAttribute('width');
+    canvas[EXPANDO_KEY] = {
+      initial: {
+        height: renderHeight,
+        width: renderWidth,
+        style: {
+          display: style.display,
+          height: style.height,
+          width: style.width
+        }
+      }
+    };
+    style.display = style.display || 'block';
+    style.boxSizing = style.boxSizing || 'border-box';
+    if (isNullOrEmpty(renderWidth)) {
+      const displayWidth = readUsedSize(canvas, 'width');
+      if (displayWidth !== undefined) {
+        canvas.width = displayWidth;
+      }
+    }
+    if (isNullOrEmpty(renderHeight)) {
+      if (canvas.style.height === '') {
+        canvas.height = canvas.width / (aspectRatio || 2);
+      } else {
+        const displayHeight = readUsedSize(canvas, 'height');
+        if (displayHeight !== undefined) {
+          canvas.height = displayHeight;
+        }
+      }
+    }
+    return canvas;
+  }
+  const eventListenerOptions = supportsEventListenerOptions ? {passive: true} : false;
+  function addListener(node, type, listener) {
+    node.addEventListener(type, listener, eventListenerOptions);
+  }
+  function removeListener(chart, type, listener) {
+    chart.canvas.removeEventListener(type, listener, eventListenerOptions);
+  }
+  function fromNativeEvent(event, chart) {
+    const type = EVENT_TYPES[event.type] || event.type;
+    const {x, y} = getRelativePosition(event, chart);
+    return {
+      type,
+      chart,
+      native: event,
+      x: x !== undefined ? x : null,
+      y: y !== undefined ? y : null,
+    };
+  }
+  function nodeListContains(nodeList, canvas) {
+    for (const node of nodeList) {
+      if (node === canvas || node.contains(canvas)) {
+        return true;
+      }
+    }
+  }
+  function createAttachObserver(chart, type, listener) {
+    const canvas = chart.canvas;
+    const observer = new MutationObserver(entries => {
+      let trigger = false;
+      for (const entry of entries) {
+        trigger = trigger || nodeListContains(entry.addedNodes, canvas);
+        trigger = trigger && !nodeListContains(entry.removedNodes, canvas);
+      }
+      if (trigger) {
+        listener();
+      }
+    });
+    observer.observe(document, {childList: true, subtree: true});
+    return observer;
+  }
+  function createDetachObserver(chart, type, listener) {
+    const canvas = chart.canvas;
+    const observer = new MutationObserver(entries => {
+      let trigger = false;
+      for (const entry of entries) {
+        trigger = trigger || nodeListContains(entry.removedNodes, canvas);
+        trigger = trigger && !nodeListContains(entry.addedNodes, canvas);
+      }
+      if (trigger) {
+        listener();
+      }
+    });
+    observer.observe(document, {childList: true, subtree: true});
+    return observer;
+  }
+  const drpListeningCharts = new Map();
+  let oldDevicePixelRatio = 0;
+  function onWindowResize() {
+    const dpr = window.devicePixelRatio;
+    if (dpr === oldDevicePixelRatio) {
+      return;
+    }
+    oldDevicePixelRatio = dpr;
+    drpListeningCharts.forEach((resize, chart) => {
+      if (chart.currentDevicePixelRatio !== dpr) {
+        resize();
+      }
+    });
+  }
+  function listenDevicePixelRatioChanges(chart, resize) {
+    if (!drpListeningCharts.size) {
+      window.addEventListener('resize', onWindowResize);
+    }
+    drpListeningCharts.set(chart, resize);
+  }
+  function unlistenDevicePixelRatioChanges(chart) {
+    drpListeningCharts.delete(chart);
+    if (!drpListeningCharts.size) {
+      window.removeEventListener('resize', onWindowResize);
+    }
+  }
+  function createResizeObserver(chart, type, listener) {
+    const canvas = chart.canvas;
+    const container = canvas && _getParentNode(canvas);
+    if (!container) {
+      return;
+    }
+    const resize = throttled((width, height) => {
+      const w = container.clientWidth;
+      listener(width, height);
+      if (w < container.clientWidth) {
+        listener();
+      }
+    }, window);
+    const observer = new ResizeObserver(entries => {
+      const entry = entries[0];
+      const width = entry.contentRect.width;
+      const height = entry.contentRect.height;
+      if (width === 0 && height === 0) {
+        return;
+      }
+      resize(width, height);
+    });
+    observer.observe(container);
+    listenDevicePixelRatioChanges(chart, resize);
+    return observer;
+  }
+  function releaseObserver(chart, type, observer) {
+    if (observer) {
+      observer.disconnect();
+    }
+    if (type === 'resize') {
+      unlistenDevicePixelRatioChanges(chart);
+    }
+  }
+  function createProxyAndListen(chart, type, listener) {
+    const canvas = chart.canvas;
+    const proxy = throttled((event) => {
+      if (chart.ctx !== null) {
+        listener(fromNativeEvent(event, chart));
+      }
+    }, chart, (args) => {
+      const event = args[0];
+      return [event, event.offsetX, event.offsetY];
+    });
+    addListener(canvas, type, proxy);
+    return proxy;
+  }
+  class DomPlatform extends BasePlatform {
+    acquireContext(canvas, aspectRatio) {
+      const context = canvas && canvas.getContext && canvas.getContext('2d');
+      if (context && context.canvas === canvas) {
+        initCanvas(canvas, aspectRatio);
+        return context;
+      }
+      return null;
+    }
+    releaseContext(context) {
+      const canvas = context.canvas;
+      if (!canvas[EXPANDO_KEY]) {
+        return false;
+      }
+      const initial = canvas[EXPANDO_KEY].initial;
+      ['height', 'width'].forEach((prop) => {
+        const value = initial[prop];
+        if (isNullOrUndef(value)) {
+          canvas.removeAttribute(prop);
+        } else {
+          canvas.setAttribute(prop, value);
+        }
+      });
+      const style = initial.style || {};
+      Object.keys(style).forEach((key) => {
+        canvas.style[key] = style[key];
+      });
+      canvas.width = canvas.width;
+      delete canvas[EXPANDO_KEY];
+      return true;
+    }
+    addEventListener(chart, type, listener) {
+      this.removeEventListener(chart, type);
+      const proxies = chart.$proxies || (chart.$proxies = {});
+      const handlers = {
+        attach: createAttachObserver,
+        detach: createDetachObserver,
+        resize: createResizeObserver
+      };
+      const handler = handlers[type] || createProxyAndListen;
+      proxies[type] = handler(chart, type, listener);
+    }
+    removeEventListener(chart, type) {
+      const proxies = chart.$proxies || (chart.$proxies = {});
+      const proxy = proxies[type];
+      if (!proxy) {
+        return;
+      }
+      const handlers = {
+        attach: releaseObserver,
+        detach: releaseObserver,
+        resize: releaseObserver
+      };
+      const handler = handlers[type] || removeListener;
+      handler(chart, type, proxy);
+      proxies[type] = undefined;
+    }
+    getDevicePixelRatio() {
+      return window.devicePixelRatio;
+    }
+    getMaximumSize(canvas, width, height, aspectRatio) {
+      return getMaximumSize(canvas, width, height, aspectRatio);
+    }
+    isAttached(canvas) {
+      const container = _getParentNode(canvas);
+      return !!(container && container.isConnected);
+    }
+  }
+
+  function _detectPlatform(canvas) {
+    if (!_isDomSupported() || (typeof OffscreenCanvas !== 'undefined' && canvas instanceof OffscreenCanvas)) {
+      return BasicPlatform;
+    }
+    return DomPlatform;
+  }
+
   class PluginService {
     constructor() {
       this._init = [];
@@ -7498,6 +7679,7 @@
     }
   }
   function allPlugins(config) {
+    const localIds = {};
     const plugins = [];
     const keys = Object.keys(registry.plugins.items);
     for (let i = 0; i < keys.length; i++) {
@@ -7508,9 +7690,10 @@
       const plugin = local[i];
       if (plugins.indexOf(plugin) === -1) {
         plugins.push(plugin);
+        localIds[plugin.id] = true;
       }
     }
-    return plugins;
+    return {plugins, localIds};
   }
   function getOpts(options, all) {
     if (!all && options === false) {
@@ -7521,11 +7704,10 @@
     }
     return options;
   }
-  function createDescriptors(chart, plugins, options, all) {
+  function createDescriptors(chart, {plugins, localIds}, options, all) {
     const result = [];
     const context = chart.getContext();
-    for (let i = 0; i < plugins.length; i++) {
-      const plugin = plugins[i];
+    for (const plugin of plugins) {
       const id = plugin.id;
       const opts = getOpts(options[id], all);
       if (opts === null) {
@@ -7533,15 +7715,22 @@
       }
       result.push({
         plugin,
-        options: pluginOpts(chart.config, plugin, opts, context)
+        options: pluginOpts(chart.config, {plugin, local: localIds[id]}, opts, context)
       });
     }
     return result;
   }
-  function pluginOpts(config, plugin, opts, context) {
+  function pluginOpts(config, {plugin, local}, opts, context) {
     const keys = config.pluginScopeKeys(plugin);
     const scopes = config.getOptionScopes(opts, keys);
-    return config.createResolver(scopes, context, [''], {scriptable: false, indexable: false, allKeys: true});
+    if (local && plugin.defaults) {
+      scopes.push(plugin.defaults);
+    }
+    return config.createResolver(scopes, context, [''], {
+      scriptable: false,
+      indexable: false,
+      allKeys: true
+    });
   }
 
   function getIndexAxis(type, options) {
@@ -7827,7 +8016,7 @@
     return false;
   }
 
-  var version = "3.7.0";
+  var version = "3.9.1";
 
   const KNOWN_POSITIONS = ['top', 'bottom', 'left', 'right', 'chartArea'];
   function positionIsHorizontal(position, axis) {
@@ -7897,7 +8086,7 @@
       if (existingChart) {
         throw new Error(
           'Canvas is already in use. Chart with ID \'' + existingChart.id + '\'' +
-  				' must be destroyed before the canvas can be reused.'
+  				' must be destroyed before the canvas with ID \'' + existingChart.canvas.id + '\' can be reused.'
         );
       }
       const options = config.createResolver(config.chartOptionScopes(), this.getContext());
@@ -8368,6 +8557,9 @@
       args.cancelable = false;
       this.notifyPlugins('afterDatasetDraw', args);
     }
+    isPointInArea(point) {
+      return _isPointInArea(point, this.chartArea, this._minPadding);
+    }
     getElementsAtEventForMode(e, mode, options, useFinalPosition) {
       const method = Interaction.modes[mode];
       if (typeof method === 'function') {
@@ -8607,7 +8799,7 @@
         event: e,
         replay,
         cancelable: true,
-        inChartArea: _isPointInArea(e, this.chartArea, this._minPadding)
+        inChartArea: this.isPointInArea(e)
       };
       const eventFilter = (plugin) => (plugin.options.events || this.options.events).includes(e.native.type);
       if (this.notifyPlugins('beforeEvent', args, eventFilter) === false) {
@@ -8734,7 +8926,7 @@
       y: y + r * Math.sin(theta),
     };
   }
-  function pathArc(ctx, element, offset, spacing, end) {
+  function pathArc(ctx, element, offset, spacing, end, circular) {
     const {x, y, startAngle: start, pixelMargin, innerRadius: innerR} = element;
     const outerRadius = Math.max(element.outerRadius + spacing + offset - pixelMargin, 0);
     const innerRadius = innerR > 0 ? innerR + spacing + offset + pixelMargin : 0;
@@ -8761,35 +8953,45 @@
     const innerStartAdjustedAngle = startAngle + innerStart / innerStartAdjustedRadius;
     const innerEndAdjustedAngle = endAngle - innerEnd / innerEndAdjustedRadius;
     ctx.beginPath();
-    ctx.arc(x, y, outerRadius, outerStartAdjustedAngle, outerEndAdjustedAngle);
-    if (outerEnd > 0) {
-      const pCenter = rThetaToXY(outerEndAdjustedRadius, outerEndAdjustedAngle, x, y);
-      ctx.arc(pCenter.x, pCenter.y, outerEnd, outerEndAdjustedAngle, endAngle + HALF_PI);
-    }
-    const p4 = rThetaToXY(innerEndAdjustedRadius, endAngle, x, y);
-    ctx.lineTo(p4.x, p4.y);
-    if (innerEnd > 0) {
-      const pCenter = rThetaToXY(innerEndAdjustedRadius, innerEndAdjustedAngle, x, y);
-      ctx.arc(pCenter.x, pCenter.y, innerEnd, endAngle + HALF_PI, innerEndAdjustedAngle + Math.PI);
-    }
-    ctx.arc(x, y, innerRadius, endAngle - (innerEnd / innerRadius), startAngle + (innerStart / innerRadius), true);
-    if (innerStart > 0) {
-      const pCenter = rThetaToXY(innerStartAdjustedRadius, innerStartAdjustedAngle, x, y);
-      ctx.arc(pCenter.x, pCenter.y, innerStart, innerStartAdjustedAngle + Math.PI, startAngle - HALF_PI);
-    }
-    const p8 = rThetaToXY(outerStartAdjustedRadius, startAngle, x, y);
-    ctx.lineTo(p8.x, p8.y);
-    if (outerStart > 0) {
-      const pCenter = rThetaToXY(outerStartAdjustedRadius, outerStartAdjustedAngle, x, y);
-      ctx.arc(pCenter.x, pCenter.y, outerStart, startAngle - HALF_PI, outerStartAdjustedAngle);
+    if (circular) {
+      ctx.arc(x, y, outerRadius, outerStartAdjustedAngle, outerEndAdjustedAngle);
+      if (outerEnd > 0) {
+        const pCenter = rThetaToXY(outerEndAdjustedRadius, outerEndAdjustedAngle, x, y);
+        ctx.arc(pCenter.x, pCenter.y, outerEnd, outerEndAdjustedAngle, endAngle + HALF_PI);
+      }
+      const p4 = rThetaToXY(innerEndAdjustedRadius, endAngle, x, y);
+      ctx.lineTo(p4.x, p4.y);
+      if (innerEnd > 0) {
+        const pCenter = rThetaToXY(innerEndAdjustedRadius, innerEndAdjustedAngle, x, y);
+        ctx.arc(pCenter.x, pCenter.y, innerEnd, endAngle + HALF_PI, innerEndAdjustedAngle + Math.PI);
+      }
+      ctx.arc(x, y, innerRadius, endAngle - (innerEnd / innerRadius), startAngle + (innerStart / innerRadius), true);
+      if (innerStart > 0) {
+        const pCenter = rThetaToXY(innerStartAdjustedRadius, innerStartAdjustedAngle, x, y);
+        ctx.arc(pCenter.x, pCenter.y, innerStart, innerStartAdjustedAngle + Math.PI, startAngle - HALF_PI);
+      }
+      const p8 = rThetaToXY(outerStartAdjustedRadius, startAngle, x, y);
+      ctx.lineTo(p8.x, p8.y);
+      if (outerStart > 0) {
+        const pCenter = rThetaToXY(outerStartAdjustedRadius, outerStartAdjustedAngle, x, y);
+        ctx.arc(pCenter.x, pCenter.y, outerStart, startAngle - HALF_PI, outerStartAdjustedAngle);
+      }
+    } else {
+      ctx.moveTo(x, y);
+      const outerStartX = Math.cos(outerStartAdjustedAngle) * outerRadius + x;
+      const outerStartY = Math.sin(outerStartAdjustedAngle) * outerRadius + y;
+      ctx.lineTo(outerStartX, outerStartY);
+      const outerEndX = Math.cos(outerEndAdjustedAngle) * outerRadius + x;
+      const outerEndY = Math.sin(outerEndAdjustedAngle) * outerRadius + y;
+      ctx.lineTo(outerEndX, outerEndY);
     }
     ctx.closePath();
   }
-  function drawArc(ctx, element, offset, spacing) {
+  function drawArc(ctx, element, offset, spacing, circular) {
     const {fullCircles, startAngle, circumference} = element;
     let endAngle = element.endAngle;
     if (fullCircles) {
-      pathArc(ctx, element, offset, spacing, startAngle + TAU);
+      pathArc(ctx, element, offset, spacing, startAngle + TAU, circular);
       for (let i = 0; i < fullCircles; ++i) {
         ctx.fill();
       }
@@ -8800,7 +9002,7 @@
         }
       }
     }
-    pathArc(ctx, element, offset, spacing, endAngle);
+    pathArc(ctx, element, offset, spacing, endAngle, circular);
     ctx.fill();
     return endAngle;
   }
@@ -8823,7 +9025,7 @@
       ctx.stroke();
     }
   }
-  function drawBorder(ctx, element, offset, spacing, endAngle) {
+  function drawBorder(ctx, element, offset, spacing, endAngle, circular) {
     const {options} = element;
     const {borderWidth, borderJoinStyle} = options;
     const inner = options.borderAlign === 'inner';
@@ -8843,7 +9045,7 @@
     if (inner) {
       clipArc(ctx, element, endAngle);
     }
-    pathArc(ctx, element, offset, spacing, endAngle);
+    pathArc(ctx, element, offset, spacing, endAngle, circular);
     ctx.stroke();
   }
   class ArcElement extends Element {
@@ -8902,6 +9104,7 @@
       const {options, circumference} = this;
       const offset = (options.offset || 0) / 2;
       const spacing = (options.spacing || 0) / 2;
+      const circular = options.circular;
       this.pixelMargin = (options.borderAlign === 'inner') ? 0.33 : 0;
       this.fullCircles = circumference > TAU ? Math.floor(circumference / TAU) : 0;
       if (circumference === 0 || this.innerRadius < 0 || this.outerRadius < 0) {
@@ -8919,8 +9122,8 @@
       }
       ctx.fillStyle = options.backgroundColor;
       ctx.strokeStyle = options.borderColor;
-      const endAngle = drawArc(ctx, this, radiusOffset, spacing);
-      drawBorder(ctx, this, radiusOffset, spacing, endAngle);
+      const endAngle = drawArc(ctx, this, radiusOffset, spacing, circular);
+      drawBorder(ctx, this, radiusOffset, spacing, endAngle, circular);
       ctx.restore();
     }
   }
@@ -8934,6 +9137,7 @@
     offset: 0,
     spacing: 0,
     angle: undefined,
+    circular: true,
   };
   ArcElement.defaultRoutes = {
     backgroundColor: 'backgroundColor'
@@ -9605,7 +9809,7 @@
         if (resolve([indexAxis, chart.options.indexAxis]) === 'y') {
           return;
         }
-        if (meta.type !== 'line') {
+        if (!meta.controller.supportsDecimation) {
           return;
         }
         const xAxis = chart.scales[meta.xAxisID];
@@ -9654,10 +9858,179 @@
     }
   };
 
-  function getLineByIndex(chart, index) {
-    const meta = chart.getDatasetMeta(index);
-    const visible = meta && chart.isDatasetVisible(index);
-    return visible ? meta.dataset : null;
+  function _segments(line, target, property) {
+    const segments = line.segments;
+    const points = line.points;
+    const tpoints = target.points;
+    const parts = [];
+    for (const segment of segments) {
+      let {start, end} = segment;
+      end = _findSegmentEnd(start, end, points);
+      const bounds = _getBounds(property, points[start], points[end], segment.loop);
+      if (!target.segments) {
+        parts.push({
+          source: segment,
+          target: bounds,
+          start: points[start],
+          end: points[end]
+        });
+        continue;
+      }
+      const targetSegments = _boundSegments(target, bounds);
+      for (const tgt of targetSegments) {
+        const subBounds = _getBounds(property, tpoints[tgt.start], tpoints[tgt.end], tgt.loop);
+        const fillSources = _boundSegment(segment, points, subBounds);
+        for (const fillSource of fillSources) {
+          parts.push({
+            source: fillSource,
+            target: tgt,
+            start: {
+              [property]: _getEdge(bounds, subBounds, 'start', Math.max)
+            },
+            end: {
+              [property]: _getEdge(bounds, subBounds, 'end', Math.min)
+            }
+          });
+        }
+      }
+    }
+    return parts;
+  }
+  function _getBounds(property, first, last, loop) {
+    if (loop) {
+      return;
+    }
+    let start = first[property];
+    let end = last[property];
+    if (property === 'angle') {
+      start = _normalizeAngle(start);
+      end = _normalizeAngle(end);
+    }
+    return {property, start, end};
+  }
+  function _pointsFromSegments(boundary, line) {
+    const {x = null, y = null} = boundary || {};
+    const linePoints = line.points;
+    const points = [];
+    line.segments.forEach(({start, end}) => {
+      end = _findSegmentEnd(start, end, linePoints);
+      const first = linePoints[start];
+      const last = linePoints[end];
+      if (y !== null) {
+        points.push({x: first.x, y});
+        points.push({x: last.x, y});
+      } else if (x !== null) {
+        points.push({x, y: first.y});
+        points.push({x, y: last.y});
+      }
+    });
+    return points;
+  }
+  function _findSegmentEnd(start, end, points) {
+    for (;end > start; end--) {
+      const point = points[end];
+      if (!isNaN(point.x) && !isNaN(point.y)) {
+        break;
+      }
+    }
+    return end;
+  }
+  function _getEdge(a, b, prop, fn) {
+    if (a && b) {
+      return fn(a[prop], b[prop]);
+    }
+    return a ? a[prop] : b ? b[prop] : 0;
+  }
+
+  function _createBoundaryLine(boundary, line) {
+    let points = [];
+    let _loop = false;
+    if (isArray(boundary)) {
+      _loop = true;
+      points = boundary;
+    } else {
+      points = _pointsFromSegments(boundary, line);
+    }
+    return points.length ? new LineElement({
+      points,
+      options: {tension: 0},
+      _loop,
+      _fullLoop: _loop
+    }) : null;
+  }
+  function _shouldApplyFill(source) {
+    return source && source.fill !== false;
+  }
+
+  function _resolveTarget(sources, index, propagate) {
+    const source = sources[index];
+    let fill = source.fill;
+    const visited = [index];
+    let target;
+    if (!propagate) {
+      return fill;
+    }
+    while (fill !== false && visited.indexOf(fill) === -1) {
+      if (!isNumberFinite(fill)) {
+        return fill;
+      }
+      target = sources[fill];
+      if (!target) {
+        return false;
+      }
+      if (target.visible) {
+        return fill;
+      }
+      visited.push(fill);
+      fill = target.fill;
+    }
+    return false;
+  }
+  function _decodeFill(line, index, count) {
+    const fill = parseFillOption(line);
+    if (isObject(fill)) {
+      return isNaN(fill.value) ? false : fill;
+    }
+    let target = parseFloat(fill);
+    if (isNumberFinite(target) && Math.floor(target) === target) {
+      return decodeTargetIndex(fill[0], index, target, count);
+    }
+    return ['origin', 'start', 'end', 'stack', 'shape'].indexOf(fill) >= 0 && fill;
+  }
+  function decodeTargetIndex(firstCh, index, target, count) {
+    if (firstCh === '-' || firstCh === '+') {
+      target = index + target;
+    }
+    if (target === index || target < 0 || target >= count) {
+      return false;
+    }
+    return target;
+  }
+  function _getTargetPixel(fill, scale) {
+    let pixel = null;
+    if (fill === 'start') {
+      pixel = scale.bottom;
+    } else if (fill === 'end') {
+      pixel = scale.top;
+    } else if (isObject(fill)) {
+      pixel = scale.getPixelForValue(fill.value);
+    } else if (scale.getBasePixel) {
+      pixel = scale.getBasePixel();
+    }
+    return pixel;
+  }
+  function _getTargetValue(fill, scale, startValue) {
+    let value;
+    if (fill === 'start') {
+      value = startValue;
+    } else if (fill === 'end') {
+      value = scale.options.reverse ? scale.min : scale.max;
+    } else if (isObject(fill)) {
+      value = fill.value;
+    } else {
+      value = scale.getBaseValue();
+    }
+    return value;
   }
   function parseFillOption(line) {
     const options = line.options;
@@ -9674,138 +10047,14 @@
     }
     return fill;
   }
-  function decodeFill(line, index, count) {
-    const fill = parseFillOption(line);
-    if (isObject(fill)) {
-      return isNaN(fill.value) ? false : fill;
-    }
-    let target = parseFloat(fill);
-    if (isNumberFinite(target) && Math.floor(target) === target) {
-      if (fill[0] === '-' || fill[0] === '+') {
-        target = index + target;
-      }
-      if (target === index || target < 0 || target >= count) {
-        return false;
-      }
-      return target;
-    }
-    return ['origin', 'start', 'end', 'stack', 'shape'].indexOf(fill) >= 0 && fill;
-  }
-  function computeLinearBoundary(source) {
-    const {scale = {}, fill} = source;
-    let target = null;
-    let horizontal;
-    if (fill === 'start') {
-      target = scale.bottom;
-    } else if (fill === 'end') {
-      target = scale.top;
-    } else if (isObject(fill)) {
-      target = scale.getPixelForValue(fill.value);
-    } else if (scale.getBasePixel) {
-      target = scale.getBasePixel();
-    }
-    if (isNumberFinite(target)) {
-      horizontal = scale.isHorizontal();
-      return {
-        x: horizontal ? target : null,
-        y: horizontal ? null : target
-      };
-    }
-    return null;
-  }
-  class simpleArc {
-    constructor(opts) {
-      this.x = opts.x;
-      this.y = opts.y;
-      this.radius = opts.radius;
-    }
-    pathSegment(ctx, bounds, opts) {
-      const {x, y, radius} = this;
-      bounds = bounds || {start: 0, end: TAU};
-      ctx.arc(x, y, radius, bounds.end, bounds.start, true);
-      return !opts.bounds;
-    }
-    interpolate(point) {
-      const {x, y, radius} = this;
-      const angle = point.angle;
-      return {
-        x: x + Math.cos(angle) * radius,
-        y: y + Math.sin(angle) * radius,
-        angle
-      };
-    }
-  }
-  function computeCircularBoundary(source) {
-    const {scale, fill} = source;
-    const options = scale.options;
-    const length = scale.getLabels().length;
-    const target = [];
-    const start = options.reverse ? scale.max : scale.min;
-    const end = options.reverse ? scale.min : scale.max;
-    let i, center, value;
-    if (fill === 'start') {
-      value = start;
-    } else if (fill === 'end') {
-      value = end;
-    } else if (isObject(fill)) {
-      value = fill.value;
-    } else {
-      value = scale.getBaseValue();
-    }
-    if (options.grid.circular) {
-      center = scale.getPointPositionForValue(0, start);
-      return new simpleArc({
-        x: center.x,
-        y: center.y,
-        radius: scale.getDistanceFromCenterForValue(value)
-      });
-    }
-    for (i = 0; i < length; ++i) {
-      target.push(scale.getPointPositionForValue(i, value));
-    }
-    return target;
-  }
-  function computeBoundary(source) {
-    const scale = source.scale || {};
-    if (scale.getPointPositionForValue) {
-      return computeCircularBoundary(source);
-    }
-    return computeLinearBoundary(source);
-  }
-  function findSegmentEnd(start, end, points) {
-    for (;end > start; end--) {
-      const point = points[end];
-      if (!isNaN(point.x) && !isNaN(point.y)) {
-        break;
-      }
-    }
-    return end;
-  }
-  function pointsFromSegments(boundary, line) {
-    const {x = null, y = null} = boundary || {};
-    const linePoints = line.points;
-    const points = [];
-    line.segments.forEach(({start, end}) => {
-      end = findSegmentEnd(start, end, linePoints);
-      const first = linePoints[start];
-      const last = linePoints[end];
-      if (y !== null) {
-        points.push({x: first.x, y});
-        points.push({x: last.x, y});
-      } else if (x !== null) {
-        points.push({x, y: first.y});
-        points.push({x, y: last.y});
-      }
-    });
-    return points;
-  }
-  function buildStackLine(source) {
+
+  function _buildStackLine(source) {
     const {scale, index, line} = source;
     const points = [];
     const segments = line.segments;
     const sourcePoints = line.points;
     const linesBelow = getLinesBelow(scale, index);
-    linesBelow.push(createBoundaryLine({x: null, y: scale.bottom}, line));
+    linesBelow.push(_createBoundaryLine({x: null, y: scale.bottom}, line));
     for (let i = 0; i < segments.length; i++) {
       const segment = segments[i];
       for (let j = segment.start; j <= segment.end; j++) {
@@ -9869,13 +10118,37 @@
     }
     return {first, last, point};
   }
-  function getTarget(source) {
+
+  class simpleArc {
+    constructor(opts) {
+      this.x = opts.x;
+      this.y = opts.y;
+      this.radius = opts.radius;
+    }
+    pathSegment(ctx, bounds, opts) {
+      const {x, y, radius} = this;
+      bounds = bounds || {start: 0, end: TAU};
+      ctx.arc(x, y, radius, bounds.end, bounds.start, true);
+      return !opts.bounds;
+    }
+    interpolate(point) {
+      const {x, y, radius} = this;
+      const angle = point.angle;
+      return {
+        x: x + Math.cos(angle) * radius,
+        y: y + Math.sin(angle) * radius,
+        angle
+      };
+    }
+  }
+
+  function _getTarget(source) {
     const {chart, fill, line} = source;
     if (isNumberFinite(fill)) {
       return getLineByIndex(chart, fill);
     }
     if (fill === 'stack') {
-      return buildStackLine(source);
+      return _buildStackLine(source);
     }
     if (fill === 'shape') {
       return true;
@@ -9884,128 +10157,108 @@
     if (boundary instanceof simpleArc) {
       return boundary;
     }
-    return createBoundaryLine(boundary, line);
+    return _createBoundaryLine(boundary, line);
   }
-  function createBoundaryLine(boundary, line) {
-    let points = [];
-    let _loop = false;
-    if (isArray(boundary)) {
-      _loop = true;
-      points = boundary;
-    } else {
-      points = pointsFromSegments(boundary, line);
-    }
-    return points.length ? new LineElement({
-      points,
-      options: {tension: 0},
-      _loop,
-      _fullLoop: _loop
-    }) : null;
+  function getLineByIndex(chart, index) {
+    const meta = chart.getDatasetMeta(index);
+    const visible = meta && chart.isDatasetVisible(index);
+    return visible ? meta.dataset : null;
   }
-  function resolveTarget(sources, index, propagate) {
-    const source = sources[index];
-    let fill = source.fill;
-    const visited = [index];
-    let target;
-    if (!propagate) {
-      return fill;
+  function computeBoundary(source) {
+    const scale = source.scale || {};
+    if (scale.getPointPositionForValue) {
+      return computeCircularBoundary(source);
     }
-    while (fill !== false && visited.indexOf(fill) === -1) {
-      if (!isNumberFinite(fill)) {
-        return fill;
-      }
-      target = sources[fill];
-      if (!target) {
-        return false;
-      }
-      if (target.visible) {
-        return fill;
-      }
-      visited.push(fill);
-      fill = target.fill;
-    }
-    return false;
+    return computeLinearBoundary(source);
   }
-  function _clip(ctx, target, clipY) {
+  function computeLinearBoundary(source) {
+    const {scale = {}, fill} = source;
+    const pixel = _getTargetPixel(fill, scale);
+    if (isNumberFinite(pixel)) {
+      const horizontal = scale.isHorizontal();
+      return {
+        x: horizontal ? pixel : null,
+        y: horizontal ? null : pixel
+      };
+    }
+    return null;
+  }
+  function computeCircularBoundary(source) {
+    const {scale, fill} = source;
+    const options = scale.options;
+    const length = scale.getLabels().length;
+    const start = options.reverse ? scale.max : scale.min;
+    const value = _getTargetValue(fill, scale, start);
+    const target = [];
+    if (options.grid.circular) {
+      const center = scale.getPointPositionForValue(0, start);
+      return new simpleArc({
+        x: center.x,
+        y: center.y,
+        radius: scale.getDistanceFromCenterForValue(value)
+      });
+    }
+    for (let i = 0; i < length; ++i) {
+      target.push(scale.getPointPositionForValue(i, value));
+    }
+    return target;
+  }
+
+  function _drawfill(ctx, source, area) {
+    const target = _getTarget(source);
+    const {line, scale, axis} = source;
+    const lineOpts = line.options;
+    const fillOption = lineOpts.fill;
+    const color = lineOpts.backgroundColor;
+    const {above = color, below = color} = fillOption || {};
+    if (target && line.points.length) {
+      clipArea(ctx, area);
+      doFill(ctx, {line, target, above, below, area, scale, axis});
+      unclipArea(ctx);
+    }
+  }
+  function doFill(ctx, cfg) {
+    const {line, target, above, below, area, scale} = cfg;
+    const property = line._loop ? 'angle' : cfg.axis;
+    ctx.save();
+    if (property === 'x' && below !== above) {
+      clipVertical(ctx, target, area.top);
+      fill(ctx, {line, target, color: above, scale, property});
+      ctx.restore();
+      ctx.save();
+      clipVertical(ctx, target, area.bottom);
+    }
+    fill(ctx, {line, target, color: below, scale, property});
+    ctx.restore();
+  }
+  function clipVertical(ctx, target, clipY) {
+    const {segments, points} = target;
+    let first = true;
+    let lineLoop = false;
     ctx.beginPath();
-    target.path(ctx);
-    ctx.lineTo(target.last().x, clipY);
+    for (const segment of segments) {
+      const {start, end} = segment;
+      const firstPoint = points[start];
+      const lastPoint = points[_findSegmentEnd(start, end, points)];
+      if (first) {
+        ctx.moveTo(firstPoint.x, firstPoint.y);
+        first = false;
+      } else {
+        ctx.lineTo(firstPoint.x, clipY);
+        ctx.lineTo(firstPoint.x, firstPoint.y);
+      }
+      lineLoop = !!target.pathSegment(ctx, segment, {move: lineLoop});
+      if (lineLoop) {
+        ctx.closePath();
+      } else {
+        ctx.lineTo(lastPoint.x, clipY);
+      }
+    }
     ctx.lineTo(target.first().x, clipY);
     ctx.closePath();
     ctx.clip();
   }
-  function getBounds(property, first, last, loop) {
-    if (loop) {
-      return;
-    }
-    let start = first[property];
-    let end = last[property];
-    if (property === 'angle') {
-      start = _normalizeAngle(start);
-      end = _normalizeAngle(end);
-    }
-    return {property, start, end};
-  }
-  function _getEdge(a, b, prop, fn) {
-    if (a && b) {
-      return fn(a[prop], b[prop]);
-    }
-    return a ? a[prop] : b ? b[prop] : 0;
-  }
-  function _segments(line, target, property) {
-    const segments = line.segments;
-    const points = line.points;
-    const tpoints = target.points;
-    const parts = [];
-    for (const segment of segments) {
-      let {start, end} = segment;
-      end = findSegmentEnd(start, end, points);
-      const bounds = getBounds(property, points[start], points[end], segment.loop);
-      if (!target.segments) {
-        parts.push({
-          source: segment,
-          target: bounds,
-          start: points[start],
-          end: points[end]
-        });
-        continue;
-      }
-      const targetSegments = _boundSegments(target, bounds);
-      for (const tgt of targetSegments) {
-        const subBounds = getBounds(property, tpoints[tgt.start], tpoints[tgt.end], tgt.loop);
-        const fillSources = _boundSegment(segment, points, subBounds);
-        for (const fillSource of fillSources) {
-          parts.push({
-            source: fillSource,
-            target: tgt,
-            start: {
-              [property]: _getEdge(bounds, subBounds, 'start', Math.max)
-            },
-            end: {
-              [property]: _getEdge(bounds, subBounds, 'end', Math.min)
-            }
-          });
-        }
-      }
-    }
-    return parts;
-  }
-  function clipBounds(ctx, scale, bounds) {
-    const {top, bottom} = scale.chart.chartArea;
-    const {property, start, end} = bounds || {};
-    if (property === 'x') {
-      ctx.beginPath();
-      ctx.rect(start, top, end - start, bottom - top);
-      ctx.clip();
-    }
-  }
-  function interpolatedLineTo(ctx, target, point, property) {
-    const interpolatedPoint = target.interpolate(point, property);
-    if (interpolatedPoint) {
-      ctx.lineTo(interpolatedPoint.x, interpolatedPoint.y);
-    }
-  }
-  function _fill(ctx, cfg) {
+  function fill(ctx, cfg) {
     const {line, target, property, color, scale} = cfg;
     const segments = _segments(line, target, property);
     for (const {source: src, target: tgt, start, end} of segments) {
@@ -10013,7 +10266,7 @@
       const notShape = target !== true;
       ctx.save();
       ctx.fillStyle = backgroundColor;
-      clipBounds(ctx, scale, notShape && getBounds(property, start, end));
+      clipBounds(ctx, scale, notShape && _getBounds(property, start, end));
       ctx.beginPath();
       const lineLoop = !!line.pathSegment(ctx, src);
       let loop;
@@ -10034,34 +10287,23 @@
       ctx.restore();
     }
   }
-  function doFill(ctx, cfg) {
-    const {line, target, above, below, area, scale} = cfg;
-    const property = line._loop ? 'angle' : cfg.axis;
-    ctx.save();
-    if (property === 'x' && below !== above) {
-      _clip(ctx, target, area.top);
-      _fill(ctx, {line, target, color: above, scale, property});
-      ctx.restore();
-      ctx.save();
-      _clip(ctx, target, area.bottom);
-    }
-    _fill(ctx, {line, target, color: below, scale, property});
-    ctx.restore();
-  }
-  function drawfill(ctx, source, area) {
-    const target = getTarget(source);
-    const {line, scale, axis} = source;
-    const lineOpts = line.options;
-    const fillOption = lineOpts.fill;
-    const color = lineOpts.backgroundColor;
-    const {above = color, below = color} = fillOption || {};
-    if (target && line.points.length) {
-      clipArea(ctx, area);
-      doFill(ctx, {line, target, above, below, area, scale, axis});
-      unclipArea(ctx);
+  function clipBounds(ctx, scale, bounds) {
+    const {top, bottom} = scale.chart.chartArea;
+    const {property, start, end} = bounds || {};
+    if (property === 'x') {
+      ctx.beginPath();
+      ctx.rect(start, top, end - start, bottom - top);
+      ctx.clip();
     }
   }
-  var plugin_filler = {
+  function interpolatedLineTo(ctx, target, point, property) {
+    const interpolatedPoint = target.interpolate(point, property);
+    if (interpolatedPoint) {
+      ctx.lineTo(interpolatedPoint.x, interpolatedPoint.y);
+    }
+  }
+
+  var index = {
     id: 'filler',
     afterDatasetsUpdate(chart, _args, options) {
       const count = (chart.data.datasets || []).length;
@@ -10075,7 +10317,7 @@
           source = {
             visible: chart.isDatasetVisible(i),
             index: i,
-            fill: decodeFill(line, i, count),
+            fill: _decodeFill(line, i, count),
             chart,
             axis: meta.controller.options.indexAxis,
             scale: meta.vScale,
@@ -10090,7 +10332,7 @@
         if (!source || source.fill === false) {
           continue;
         }
-        source.fill = resolveTarget(sources, i, options.propagate);
+        source.fill = _resolveTarget(sources, i, options.propagate);
       }
     },
     beforeDraw(chart, _args, options) {
@@ -10103,8 +10345,8 @@
           continue;
         }
         source.line.updateControlPoints(area, source.axis);
-        if (draw) {
-          drawfill(chart.ctx, source, area);
+        if (draw && source.fill) {
+          _drawfill(chart.ctx, source, area);
         }
       }
     },
@@ -10115,17 +10357,17 @@
       const metasets = chart.getSortedVisibleDatasetMetas();
       for (let i = metasets.length - 1; i >= 0; --i) {
         const source = metasets[i].$filler;
-        if (source) {
-          drawfill(chart.ctx, source, chart.chartArea);
+        if (_shouldApplyFill(source)) {
+          _drawfill(chart.ctx, source, chart.chartArea);
         }
       }
     },
     beforeDatasetDraw(chart, args, options) {
       const source = args.meta.$filler;
-      if (!source || source.fill === false || options.drawTime !== 'beforeDatasetDraw') {
+      if (!_shouldApplyFill(source) || options.drawTime !== 'beforeDatasetDraw') {
         return;
       }
-      drawfill(chart.ctx, source, chart.chartArea);
+      _drawfill(chart.ctx, source, chart.chartArea);
     },
     defaults: {
       propagate: true,
@@ -10137,7 +10379,7 @@
     let {boxHeight = fontSize, boxWidth = fontSize} = labelOpts;
     if (labelOpts.usePointStyle) {
       boxHeight = Math.min(boxHeight, fontSize);
-      boxWidth = Math.min(boxWidth, fontSize);
+      boxWidth = labelOpts.pointStyleWidth || Math.min(boxWidth, fontSize);
     }
     return {
       boxWidth,
@@ -10354,14 +10596,14 @@
         ctx.setLineDash(valueOrDefault(legendItem.lineDash, []));
         if (labelOpts.usePointStyle) {
           const drawOptions = {
-            radius: boxWidth * Math.SQRT2 / 2,
+            radius: boxHeight * Math.SQRT2 / 2,
             pointStyle: legendItem.pointStyle,
             rotation: legendItem.rotation,
             borderWidth: lineWidth
           };
           const centerX = rtlHelper.xPlus(x, boxWidth / 2);
           const centerY = y + halfFontSize;
-          drawPoint(ctx, drawOptions, centerX, centerY);
+          drawPointLegend(ctx, drawOptions, centerX, centerY, labelOpts.pointStyleWidth && boxWidth);
         } else {
           const yBoxTop = y + Math.max((fontSize - boxHeight) / 2, 0);
           const xBoxLeft = rtlHelper.leftForLtr(x, boxWidth);
@@ -10499,7 +10741,7 @@
         return;
       }
       const hoveredItem = this._getLegendItemAt(e.x, e.y);
-      if (e.type === 'mousemove') {
+      if (e.type === 'mousemove' || e.type === 'mouseout') {
         const previous = this._hoveredItem;
         const sameItem = itemsEqual(previous, hoveredItem);
         if (previous && !sameItem) {
@@ -10515,7 +10757,7 @@
     }
   }
   function isListened(type, opts) {
-    if (type === 'mousemove' && (opts.onHover || opts.onLeave)) {
+    if ((type === 'mousemove' || type === 'mouseout') && (opts.onHover || opts.onLeave)) {
       return true;
     }
     if (opts.onClick && (type === 'click' || type === 'mouseup')) {
@@ -11303,7 +11545,7 @@
         ctx.fillStyle = labelColors.backgroundColor;
         drawPoint(ctx, drawOptions, centerX, centerY);
       } else {
-        ctx.lineWidth = labelColors.borderWidth || 1;
+        ctx.lineWidth = isObject(labelColors.borderWidth) ? Math.max(...Object.values(labelColors.borderWidth)) : (labelColors.borderWidth || 1);
         ctx.strokeStyle = labelColors.borderColor;
         ctx.setLineDash(labelColors.borderDash || []);
         ctx.lineDashOffset = labelColors.borderDashOffset || 0;
@@ -11465,6 +11707,9 @@
         }
       }
     }
+    _willRender() {
+      return !!this.opacity;
+    }
     draw(ctx) {
       const options = this.options.setContext(this.getContext());
       let opacity = this.opacity;
@@ -11585,16 +11830,16 @@
     },
     afterDraw(chart) {
       const tooltip = chart.tooltip;
-      const args = {
-        tooltip
-      };
-      if (chart.notifyPlugins('beforeTooltipDraw', args) === false) {
-        return;
-      }
-      if (tooltip) {
+      if (tooltip && tooltip._willRender()) {
+        const args = {
+          tooltip
+        };
+        if (chart.notifyPlugins('beforeTooltipDraw', args) === false) {
+          return;
+        }
         tooltip.draw(chart.ctx);
+        chart.notifyPlugins('afterTooltipDraw', args);
       }
-      chart.notifyPlugins('afterTooltipDraw', args);
     },
     afterEvent(chart, args) {
       if (chart.tooltip) {
@@ -11742,7 +11987,7 @@
   var plugins = /*#__PURE__*/Object.freeze({
   __proto__: null,
   Decimation: plugin_decimation,
-  Filler: plugin_filler,
+  Filler: index,
   Legend: plugin_legend,
   SubTitle: plugin_subtitle,
   Title: plugin_title,
@@ -12383,9 +12628,26 @@
       const {x, y, textAlign, left, top, right, bottom} = scale._pointLabelItems[i];
       const {backdropColor} = optsAtIndex;
       if (!isNullOrUndef(backdropColor)) {
+        const borderRadius = toTRBLCorners(optsAtIndex.borderRadius);
         const padding = toPadding(optsAtIndex.backdropPadding);
         ctx.fillStyle = backdropColor;
-        ctx.fillRect(left - padding.left, top - padding.top, right - left + padding.width, bottom - top + padding.height);
+        const backdropLeft = left - padding.left;
+        const backdropTop = top - padding.top;
+        const backdropWidth = right - left + padding.width;
+        const backdropHeight = bottom - top + padding.height;
+        if (Object.values(borderRadius).some(v => v !== 0)) {
+          ctx.beginPath();
+          addRoundedRectPath(ctx, {
+            x: backdropLeft,
+            y: backdropTop,
+            w: backdropWidth,
+            h: backdropHeight,
+            radius: borderRadius,
+          });
+          ctx.fill();
+        } else {
+          ctx.fillRect(backdropLeft, backdropTop, backdropWidth, backdropHeight);
+        }
       }
       renderText(
         ctx,
@@ -12799,6 +13061,7 @@
     init(scaleOpts, opts) {
       const time = scaleOpts.time || (scaleOpts.time = {});
       const adapter = this._adapter = new adapters._date(scaleOpts.adapters.date);
+      adapter.init(opts);
       mergeIf(time.displayFormats, adapter.formats());
       this._parseOpts = {
         parser: time.parser,
@@ -12878,6 +13141,11 @@
         ticks.reverse();
       }
       return ticksFromTimestamps(this, ticks, this._majorUnit);
+    }
+    afterAutoSkip() {
+      if (this.options.offsetAfterAutoskip) {
+        this.initOffsets(this.ticks.map(tick => +tick.value));
+      }
     }
     initOffsets(timestamps) {
       let start = 0;
@@ -37794,12 +38062,115 @@
     }
 
     handleHistoryData(message) {
+      var midnight = new Date();
+      midnight.setHours(0, 0, 0, 0);
+      midnight.getTime() / 1000;
       console.log(message);
+
+      let states = message.states;
+
+      var periods = [];
+
+      for (const [name, value] of Object.entries(states)) {
+        if (name === "sensor.smart_meter_electricity_import_today") {
+
+          let temp_periods = [];
+          let prev_value = 0;
+          for (var i = 0; i < value.length; i++) {
+            if (value[i].s === "unavailable" || value[i].s === "unknown") {
+              continue;
+            }
+
+            if (value[i].s > prev_value) {
+              temp_periods.push({
+                time: Math.floor(value[i].lu),
+                value: value[i].s,
+                mix: []
+              });
+            } else {
+              temp_periods = [];
+              temp_periods.push({
+                time: Math.floor(value[i].lu),
+                value: value[i].s,
+                mix: []
+              });
+            }
+
+            prev_value = value[i].s;
+          }
+
+          periods = temp_periods;
+        }
+      }
+
+
+      for (var i = 0; i < periods.length; i++) {
+        let currentPeriod = periods[i];
+        let currentTime = currentPeriod.time;
+
+        for (const [name, value] of Object.entries(states)) {
+          if (name === "sensor.smart_meter_electricity_import_today" || name.slice(-6) === "carbon") {
+            continue;
+          }
+
+          var prevValue = 0;
+          for (var j = 0; j < value.length; j++) {
+            if (j + 1 === value.length) {
+              currentPeriod.mix.push(value[j].s);
+              break
+            }
+
+            if (value[j].lu > currentTime) {
+              currentPeriod.mix.push(prevValue);
+              break
+            }
+            prevValue = value[j].s;
+          }
+        }
+      }
+
+      var intensities = [
+        states["sensor.biomass_carbon"][0].s,
+        states["sensor.coal_carbon"][0].s,
+        this.average([
+          Number(states["sensor.dutch_imports_carbon"][0].s),
+          Number(states["sensor.french_imports_carbon"][0].s),
+          Number(states["sensor.irish_imports_carbon"][0].s)
+        ]),
+        Number(states["sensor.gas_open_cycle_carbon"][0].s) * 0.2 +
+        Number(states["sensor.gas_combined_cycle_carbon"][0].s) * 0.8,
+        states["sensor.nuclear_carbon"][0].s,
+        states["sensor.other_carbon"][0].s,
+        states["sensor.hydro_carbon"][0].s,
+        states["sensor.solar_carbon"][0].s,
+        states["sensor.wind_carbon"][0].s
+      ];
+
+      var prevValue = 0;
+      for (var i = 0; i < periods.length; i++) {
+        let difference = Number(periods[i].value) - Number(prevValue);
+        console.log('value: ' + periods[i].value);
+        let total = 0.0;
+        console.log('difference: ' + difference);
+        console.log(intensities);
+
+        for (var j = 0; j < intensities.length; j++) {
+          total += Number(intensities[j]) * ((Number(periods[i].mix[j]) / 100) * Number(difference));
+        }
+
+        this.total_carbon += total;
+        console.log("carbon: " + total);
+        prevValue = Number(periods[i].value);
+      }
+
+      this.render();
+
+      console.log(periods);
     }
 
     subscribeHistory() {
       var midnight = new Date();
-      midnight.setHours(5, 0, 0, 0);
+      midnight.setHours(0, 0, 0, 0);
 
       var future = new Date();
       future.setFullYear(future.getFullYear() + 1);
@@ -37807,7 +38178,6 @@
       const params = {
         type: "history/stream",
         entity_ids: [
-          "sensor.smart_meter_electricity_import_today",
           "sensor.biomass",
           "sensor.coal",
           "sensor.imports",
@@ -37816,7 +38186,20 @@
           "sensor.other",
           "sensor.hydro",
           "sensor.solar",
-          "sensor.wind"
+          "sensor.wind",
+          "sensor.smart_meter_electricity_import_today",
+          "sensor.biomass_carbon",
+          "sensor.coal_carbon",
+          "sensor.dutch_imports_carbon",
+          "sensor.french_imports_carbon",
+          "sensor.irish_imports_carbon",
+          "sensor.gas_combined_cycle_carbon",
+          "sensor.gas_open_cycle_carbon",
+          "sensor.nuclear_carbon",
+          "sensor.other_carbon",
+          "sensor.hydro_carbon",
+          "sensor.solar_carbon",
+          "sensor.wind_carbon"
         ],
         start_time: midnight,
         end_time: future,
@@ -37843,62 +38226,6 @@
     }
 
     render() {
-      let kwh_today_sensor = this.hass.states["sensor.smart_meter_electricity_import_today"];
-      let current_kwh;
-
-      if (kwh_today_sensor === undefined) {
-        current_kwh = 0;
-      } else {
-        current_kwh = kwh_today_sensor.state;
-      }
-
-      let intensityFactors = [
-        this.hass.states["sensor.biomass_carbon"].state,
-        this.hass.states["sensor.coal_carbon"].state,
-        this.hass.states["sensor.dutch_imports_carbon"].state,
-        this.hass.states["sensor.french_imports_carbon"].state,
-        this.hass.states["sensor.gas_combined_cycle_carbon"].state,
-        this.hass.states["sensor.gas_open_cycle_carbon"].state,
-        this.hass.states["sensor.hydro_carbon"].state,
-        this.hass.states["sensor.irish_imports_carbon"].state,
-        this.hass.states["sensor.nuclear_carbon"].state,
-        this.hass.states["sensor.oil_carbon"].state,
-        this.hass.states["sensor.other_carbon"].state,
-        this.hass.states["sensor.pumped_storage_carbon"].state,
-        this.hass.states["sensor.solar_carbon"].state,
-        this.hass.states["sensor.wind_carbon"].state,
-      ];
-
-      let mix = [
-        this.hass.states["sensor.biomass"].state / 100,
-        this.hass.states["sensor.coal"].state / 100,
-        this.hass.states["sensor.imports"].state / 100,
-        this.hass.states["sensor.gas"].state / 100,
-        this.hass.states["sensor.nuclear"].state / 100,
-        this.hass.states["sensor.other"].state / 100,
-        this.hass.states["sensor.hydro"].state / 100,
-        this.hass.states["sensor.solar"].state / 100,
-        this.hass.states["sensor.wind"].state / 100,
-      ];
-
-      let kwh_difference;
-      if (current_kwh > this.old_current_kwh) {
-        kwh_difference = current_kwh - this.old_current_kwh;
-
-        let bio_carbon = (kwh_difference * mix[0]) * intensityFactors[0];
-        let coal_carbon = (kwh_difference * mix[1]) * intensityFactors[1];
-
-        let import_carbon = (kwh_difference * mix[2]) * this.average(intensityFactors[2], intensityFactors[3], intensityFactors[7]);
-
-        let gas_cc_carbon = (kwh_difference * mix[3] * 0.8) * intensityFactors[3];
-        let gas_oc_carbon = (kwh_difference * mix[3] * 0.2) * intensityFactors[4];
-        let gas_carbon = gas_cc_carbon + gas_oc_carbon;
-
-        let carbon_increase = bio_carbon + coal_carbon + gas_carbon + import_carbon;
-        this.total_carbon += carbon_increase;
-        this.old_current_kwh = current_kwh;
-      }
-
       return $`
       <ha-card header="Carbon Produced Today (Estimate)">
         <div id="leaf-container">
@@ -38006,8 +38333,6 @@
         ++j;
       }
 
-      console.log(this.data_ur);
-      console.log(this.data_sc);
       this.chart.update();
       this.isChartActive = true;
     }
@@ -38063,7 +38388,6 @@
           y: this.hass.states["sensor.smart_meter_electricity_import_standing_charge"]
         });
         this.chart.update();
-        console.log(this.chart.data);
       }
 
       return $`
@@ -38185,7 +38509,6 @@
       //  ++j;
       //}
 
-      console.log(this.power_data);
       this.chart.update();
     }
 
@@ -38234,6 +38557,7 @@
         <div class="power-container">
           <div class="label">
             Current: ${this.hass.states["sensor.smart_meter_electricity_power"].state} kW
+            Total: ${this.hass.states["sensor.smart_meter_electricity_import_today"].state} kWh
           </div>
         </div>
         <div class="chart-container">
@@ -38244,6 +38568,99 @@
     }
   }
 
+  class ThermalCard extends s {
+
+      sensor_data = []
+      entity
+      rendered = false
+
+      static get properties() {
+        return {
+          hass: { type: Object },
+          config: { type: Object },
+        };
+      }
+
+      setConfig(config) {
+        this.config = config;
+        this.entity = config.sensor;
+      }
+
+      getEntityState(type) {
+        if (this.entity === 1) {
+          return this.hass.states["sensor.current_" + type].state
+        } else {
+          return this.hass.states["sensor.current_" + type + "_" + (this.entity).toString()].state
+        }
+      }
+
+      firstUpdated() {
+        this.subscribeHistory();
+      }
+
+      getCardSize() {
+        return 12
+      }
+
+      handleHistoryData(message) {
+      }
+
+      subscribeHistory() {
+        var midnight = new Date();
+        midnight.setHours(0, 0, 0, 0);
+
+        var future = new Date();
+        future.setFullYear(future.getFullYear() + 1);
+
+        const params = {
+          type: "history/stream",
+          entity_ids: [
+            "sensor.smart_meter_electricity_power",
+          ],
+          start_time: midnight,
+          end_time: future,
+          minimal_response: true
+        };
+        return this.hass.connection.subscribeMessage(
+          (message) => this.handleHistoryData(message),
+          params
+        );
+      };
+
+      static styles = r$2`
+      .power-container {
+        padding: 20px;
+        margin: auto;
+        width: 200px;
+      }
+
+      #chart-container {
+        padding: 20px;
+        margin-top: -20px;
+      }
+
+      .label {
+        font-size: 20px;
+      }
+    `;
+
+      render() {
+        this.rendered = true;
+        return $`
+        <ha-card header="Thermal Sensor ${this.config.sensor}">
+          <div class="power-container">
+            <div class="label">
+              Temp: ${this.getEntityState("temperature")}
+              Humidity: ${this.getEntityState("humidity")}
+            </div>
+          </div>
+          <div id="chart-container">
+          </div>
+        </ha-card>
+      `;
+      }
+  }
+
   customElements.define(pkg.name, MixCard);
   customElements.define("consumption-card", IntensityCard);
   customElements.define("carbon-card", CarbonCard);
@@ -38251,6 +38668,7 @@
   customElements.define("power-card", PowerCard);
   customElements.define("title-card", TitleCard);
   customElements.define("spacer-card", SpacerCard);
+  customElements.define("thermal-card", ThermalCard);
 
   window.customCards = window.customCards || [];
 
@@ -38288,6 +38706,11 @@
     type: "spacer-card",
     name: "Spacer Card",
     description: "Spacer Card"
+  });
+  window.customCards.push({
+    type: "thermal-card",
+    name: "Thermal Card",
+    description: "Thermal Card"
   });
 
 }));
