@@ -37626,6 +37626,91 @@
     }
   });
 
+  const centerTextPlugin = {
+    id: 'center-text',
+    beforeDraw: function (chart) {
+      if (chart.config.options.elements.center) {
+        // Get ctx from string
+        var ctx = chart.ctx;
+
+        // Get options from the center object in options
+        var centerConfig = chart.config.options.elements.center;
+        var fontStyle = centerConfig.fontStyle || 'Arial';
+        var txt = centerConfig.text;
+        var color = centerConfig.color || '#000';
+        var maxFontSize = centerConfig.maxFontSize || 75;
+        var sidePadding = centerConfig.sidePadding || 20;
+        var sidePaddingCalculated = (sidePadding / 100) * (chart.innerRadius * 2);
+        // Start with a base font of 30px
+        ctx.font = "30px " + fontStyle;
+
+        // Get the width of the string and also the width of the element minus 10 to give it 5px side padding
+        var stringWidth = ctx.measureText(txt).width;
+        var elementWidth = (chart.innerRadius * 2) - sidePaddingCalculated;
+
+        // Find out how much the font can grow in width.
+        var widthRatio = elementWidth / stringWidth;
+        var newFontSize = Math.floor(30 * widthRatio);
+        var elementHeight = (chart.innerRadius * 2);
+
+        // Pick a new font size so it will not be larger than the height of label.
+        var fontSizeToUse = Math.min(newFontSize, elementHeight, maxFontSize);
+        var minFontSize = centerConfig.minFontSize;
+        var lineHeight = centerConfig.lineHeight || 25;
+        var wrapText = false;
+
+        if (minFontSize === undefined) {
+          minFontSize = 20;
+        }
+
+        if (minFontSize && fontSizeToUse < minFontSize) {
+          fontSizeToUse = minFontSize;
+          wrapText = true;
+        }
+
+        // Set font settings to draw it correctly.
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        var centerX = ((chart.chartArea.left + chart.chartArea.right) / 2);
+        var centerY = ((chart.chartArea.top + chart.chartArea.bottom) * (3/5));
+        ctx.font = fontSizeToUse + "px " + fontStyle;
+        ctx.fillStyle = color;
+
+        if (!wrapText) {
+          ctx.fillText(txt, centerX, centerY);
+          return;
+        }
+
+        var words = txt.split(' ');
+        var line = '';
+        var lines = [];
+
+        // Break words up into multiple lines if necessary
+        for (var n = 0; n < words.length; n++) {
+          var testLine = line + words[n] + ' ';
+          var metrics = ctx.measureText(testLine);
+          var testWidth = metrics.width;
+          if (testWidth > elementWidth && n > 0) {
+            lines.push(line);
+            line = words[n] + ' ';
+          } else {
+            line = testLine;
+          }
+        }
+
+        // Move the center up depending on line height and number of lines
+        centerY -= (lines.length / 2) * lineHeight;
+
+        for (var n = 0; n < lines.length; n++) {
+          ctx.fillText(lines[n], centerX, centerY);
+          centerY += lineHeight;
+        }
+        //Draw text in center
+        ctx.fillText(line, centerX, centerY);
+      }
+    }
+  };
+
   class TitleCard extends s {
 
     static styles = r$2`
@@ -38287,7 +38372,7 @@
             pointRadius: 1,
             borderWidth: 1,
             showLine: true,
-            tension: 0.2
+            tension: 0
           }, {
             label: "Standing Charge",
             data: this.data_sc,
@@ -38296,7 +38381,7 @@
             pointRadius: 1,
             borderWidth: 1,
             showLine: true,
-            tension: 0.2
+            tension: 0
           }]
         },
         options: {
@@ -38381,11 +38466,11 @@
       if (this.isChartActive) {
         this.chart.data.datasets[0].data.push({
           x: new Date(),
-          y: this.hass.states["sensor.smart_meter_electricity_import_unit_rate"]
+          y: Number(this.hass.states["sensor.smart_meter_electricity_import_unit_rate"].state)
         });
         this.chart.data.datasets[1].data.push({
           x: new Date(),
-          y: this.hass.states["sensor.smart_meter_electricity_import_standing_charge"]
+          y: Number(this.hass.states["sensor.smart_meter_electricity_import_standing_charge"].state)
         });
         this.chart.update();
       }
@@ -38570,15 +38655,26 @@
 
   class ThermalCard extends s {
 
-      sensor_data = []
       entity
-      rendered = false
+      isChartCreated = false
 
       static get properties() {
         return {
           hass: { type: Object },
           config: { type: Object },
         };
+      }
+
+      constructor() {
+        super();
+        this.chart = {};
+
+        // Set chart defaults
+        Chart.defaults.title = {
+          fontSize: 14,
+          fontStyle: 'normal',
+        };
+        Chart.defaults.color = '#fff';
       }
 
       setConfig(config) {
@@ -38595,37 +38691,49 @@
       }
 
       firstUpdated() {
-        this.subscribeHistory();
+        const ctx = this.renderRoot.querySelector('canvas').getContext('2d');
+        let perc = Math.round(this.getEntityState("temperature")) / 50;
+
+        this.chart = new Chart(ctx, {
+          plugins: [
+            centerTextPlugin
+          ],
+          type: 'doughnut',
+          data: {
+            datasets: [{
+              backgroundColor: [
+                'rgb(255, 99, 132)',
+                '#ccc'
+              ],
+              data: [perc * 100, 100 - (perc * 100)],
+              borderRadius: {
+                outerStart: 0,
+                outerEnd: 0,
+                innerStart: 0,
+                innerEnd: 0
+              },
+              borderWidth: 0
+            }]
+          },
+          options: {
+            radius: 120,
+            cutout: "75%",
+            rotation: 270,
+            circumference: 180,
+            elements: {
+              center: {
+                text: Math.round(this.getEntityState("temperature")),
+                color: "#ffffff"
+              }
+            }
+          }
+        });
+        this.isChartCreated = true;
       }
 
       getCardSize() {
         return 12
       }
-
-      handleHistoryData(message) {
-      }
-
-      subscribeHistory() {
-        var midnight = new Date();
-        midnight.setHours(0, 0, 0, 0);
-
-        var future = new Date();
-        future.setFullYear(future.getFullYear() + 1);
-
-        const params = {
-          type: "history/stream",
-          entity_ids: [
-            "sensor.smart_meter_electricity_power",
-          ],
-          start_time: midnight,
-          end_time: future,
-          minimal_response: true
-        };
-        return this.hass.connection.subscribeMessage(
-          (message) => this.handleHistoryData(message),
-          params
-        );
-      };
 
       static styles = r$2`
       .power-container {
@@ -38636,25 +38744,36 @@
 
       #chart-container {
         padding: 20px;
-        margin-top: -20px;
+        margin-top: -90px;
+        margin-bottom: -90px;
       }
 
       .label {
         font-size: 20px;
       }
+
+      .temp {
+        font-size: 40px;
+        text-align: center;
+      }
+
+      .humidity {
+        font-size: 15px;
+        text-align: center;
+      }
     `;
 
       render() {
-        this.rendered = true;
+        if (this.isChartCreated) {
+          let perc = Math.round(this.getEntityState("temperature")) / 50;
+          this.chart.data.datasets[0].data = [perc * 100, 100 - (perc * 100)];
+          this.chart.options.elements.center.text = Math.round(this.getEntityState("temperature"));
+        }
+
         return $`
-        <ha-card header="Thermal Sensor ${this.config.sensor}">
-          <div class="power-container">
-            <div class="label">
-              Temp: ${this.getEntityState("temperature")}
-              Humidity: ${this.getEntityState("humidity")}
-            </div>
-          </div>
+        <ha-card>
           <div id="chart-container">
+            <canvas></canvas>
           </div>
         </ha-card>
       `;
