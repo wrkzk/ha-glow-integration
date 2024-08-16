@@ -38369,19 +38369,19 @@
             data: this.data_ur,
             backgroundColor: '#afe65a',
             borderColor: '#afe65a',
-            pointRadius: 1,
+            pointRadius: 0,
             borderWidth: 1,
             showLine: true,
-            tension: 0
+            tension: 0.2
           }, {
             label: "Standing Charge",
             data: this.data_sc,
             backgroundColor: '#afe65a',
             borderColor: '#afe65a',
-            pointRadius: 1,
+            pointRadius: 0,
             borderWidth: 1,
             showLine: true,
-            tension: 0
+            tension: 0.2
           }]
         },
         options: {
@@ -38551,10 +38551,21 @@
               ticks: {
                 autoSkip: true,
                 maxTicksLimit: 13
+              },
+              grid: {
+                color: "#454545",
+                borderColor: "#454545"
               }
               //time: {
               //  unit: 'minute'
               //}
+            },
+            y: {
+              suggestedMax: 0.1,
+              grid: {
+                color: "#454545",
+                borderColor: "#454545"
+              }
             }
           },
           //animation: {
@@ -38684,9 +38695,17 @@
 
       getEntityState(type) {
         if (this.entity === 1) {
-          return this.hass.states["sensor.current_" + type].state
+          return this.hass.states["sensor.current_" + type].state;
         } else {
-          return this.hass.states["sensor.current_" + type + "_" + (this.entity).toString()].state
+          return this.hass.states["sensor.current_" + type + "_" + (this.entity).toString()].state;
+        }
+      }
+
+      getHardwareAddress() {
+        if (this.entity === 1) {
+          return this.hass.states["sensor.hardware_address"].state;
+        } else {
+          return this.hass.states["sensor.hardware_address_" + (this.entity).toString()].state;
         }
       }
 
@@ -38722,7 +38741,7 @@
             circumference: 180,
             elements: {
               center: {
-                text: Math.round(this.getEntityState("temperature")),
+                text: Math.round(this.getEntityState("temperature")) + "°C",
                 color: "#ffffff"
               }
             }
@@ -38761,19 +38780,40 @@
         font-size: 15px;
         text-align: center;
       }
+
+      .thermal-details {
+        color: "#aaaaaa";
+        text-align: center;
+        padding: 20px;
+        padding-top: 0px;
+        padding-bottom: 40px
+      }
+
+      .details {
+        margin: auto;
+        border-color: "#777799";
+        border-radius: 10px;
+        border-width: 1px;
+        border-style: solid;
+        padding: 7px 15px;
+        display: inline-block;
+      }
     `;
 
       render() {
         if (this.isChartCreated) {
           let perc = Math.round(this.getEntityState("temperature")) / 50;
           this.chart.data.datasets[0].data = [perc * 100, 100 - (perc * 100)];
-          this.chart.options.elements.center.text = Math.round(this.getEntityState("temperature"));
+          this.chart.options.elements.center.text = Math.round(this.getEntityState("temperature")) + "°C";
         }
 
         return $`
         <ha-card>
           <div id="chart-container">
             <canvas></canvas>
+          </div>
+          <div class="thermal-details">
+            <div class="details">Hardware ID: ${this.getHardwareAddress()}</div>
           </div>
         </ha-card>
       `;
