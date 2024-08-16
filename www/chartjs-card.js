@@ -37636,7 +37636,10 @@
         // Get options from the center object in options
         var centerConfig = chart.config.options.elements.center;
         var fontStyle = centerConfig.fontStyle || 'Arial';
-        var txt = centerConfig.text;
+
+        var line1 = centerConfig.line1;
+        var line2 = centerConfig.line2;
+
         var color = centerConfig.color || '#000';
         var maxFontSize = centerConfig.maxFontSize || 75;
         var sidePadding = centerConfig.sidePadding || 20;
@@ -37645,7 +37648,7 @@
         ctx.font = "30px " + fontStyle;
 
         // Get the width of the string and also the width of the element minus 10 to give it 5px side padding
-        var stringWidth = ctx.measureText(txt).width;
+        var stringWidth = ctx.measureText(line1).width;
         var elementWidth = (chart.innerRadius * 2) - sidePaddingCalculated;
 
         // Find out how much the font can grow in width.
@@ -37656,8 +37659,7 @@
         // Pick a new font size so it will not be larger than the height of label.
         var fontSizeToUse = Math.min(newFontSize, elementHeight, maxFontSize);
         var minFontSize = centerConfig.minFontSize;
-        var lineHeight = centerConfig.lineHeight || 25;
-        var wrapText = false;
+        centerConfig.lineHeight || 25;
 
         if (minFontSize === undefined) {
           minFontSize = 20;
@@ -37665,7 +37667,6 @@
 
         if (minFontSize && fontSizeToUse < minFontSize) {
           fontSizeToUse = minFontSize;
-          wrapText = true;
         }
 
         // Set font settings to draw it correctly.
@@ -37676,37 +37677,39 @@
         ctx.font = fontSizeToUse + "px " + fontStyle;
         ctx.fillStyle = color;
 
-        if (!wrapText) {
-          ctx.fillText(txt, centerX, centerY);
-          return;
-        }
+        //if (!wrapText) {
+        //  ctx.fillText(line1, centerX, centerY);
+        //  return;
+        //}
 
-        var words = txt.split(' ');
-        var line = '';
-        var lines = [];
+        //var line = line1;
+        //var lines = [line2];
 
         // Break words up into multiple lines if necessary
-        for (var n = 0; n < words.length; n++) {
-          var testLine = line + words[n] + ' ';
-          var metrics = ctx.measureText(testLine);
-          var testWidth = metrics.width;
-          if (testWidth > elementWidth && n > 0) {
-            lines.push(line);
-            line = words[n] + ' ';
-          } else {
-            line = testLine;
-          }
-        }
+        // for (var n = 0; n < words.length; n++) {
+        //   var testLine = line + words[n] + ' ';
+        //   var metrics = ctx.measureText(testLine);
+        //   var testWidth = metrics.width;
+        //   if (testWidth > elementWidth && n > 0) {
+        //     lines.push(line);
+        //     line = words[n] + ' ';
+        //   } else {
+        //     line = testLine;
+        //   }
+        // }
 
         // Move the center up depending on line height and number of lines
-        centerY -= (lines.length / 2) * lineHeight;
+        //centerY -= (lines.length / 2) * lineHeight;
 
-        for (var n = 0; n < lines.length; n++) {
-          ctx.fillText(lines[n], centerX, centerY);
-          centerY += lineHeight;
-        }
+        //for (var n = 0; n < lines.length; n++) {
+        //  ctx.fillText(lines[n], centerX, centerY);
+        //  centerY += lineHeight;
+        //}
         //Draw text in center
-        ctx.fillText(line, centerX, centerY);
+        ctx.fillText(line1, centerX, centerY - 17);
+
+        ctx.font = "15px Arial";
+        ctx.fillText(line2, centerX - 5, centerY + 10);
       }
     }
   };
@@ -38464,11 +38467,11 @@
 
     render() {
       if (this.isChartActive) {
-        this.chart.data.datasets[0].data.push({
+        this.data_ur.push({
           x: new Date(),
           y: Number(this.hass.states["sensor.smart_meter_electricity_import_unit_rate"].state)
         });
-        this.chart.data.datasets[1].data.push({
+        this.data_sc.push({
           x: new Date(),
           y: Number(this.hass.states["sensor.smart_meter_electricity_import_standing_charge"].state)
         });
@@ -38632,9 +38635,18 @@
 
     static styles = r$2`
     .power-container {
-      padding: 20px;
+      padding-right: 20px;
+      padding-left: 20px;
+      padding-bottom: 20px;
       margin: auto;
-      width: 200px;
+      width: 250px;
+      display: flex;
+      flex-wrap: wrap;
+      padding-top: -50px;
+    }
+
+    .card-header {
+      text-align: center;
     }
 
     .chart-container {
@@ -38643,7 +38655,20 @@
     }
 
     .label {
-      font-size: 20px;
+      flex-grow: 1;
+      flex-basis: 100px;
+      text-align: center;
+      margin: 10px;
+    }
+
+    .title {
+      font-size: 13px;
+      padding-bottom: 3px;
+      color: #898989;
+    }
+
+    .value {
+      font-size: 23px;
     }
   `;
 
@@ -38652,8 +38677,20 @@
       <ha-card header="Power Utilization">
         <div class="power-container">
           <div class="label">
-            Current: ${this.hass.states["sensor.smart_meter_electricity_power"].state} kW
-            Total: ${this.hass.states["sensor.smart_meter_electricity_import_today"].state} kWh
+            <div class="title">
+              Right Now
+            </div>
+            <div class="value">
+              ${this.hass.states["sensor.smart_meter_electricity_power"].state} kW
+            </div>
+          </div>
+          <div class="label">
+            <div class="title">
+              Total (Today)
+            </div>
+            <div class="value">
+              ${this.hass.states["sensor.smart_meter_electricity_import_today"].state} kWh
+            </div>
           </div>
         </div>
         <div class="chart-container">
@@ -38741,7 +38778,8 @@
             circumference: 180,
             elements: {
               center: {
-                text: Math.round(this.getEntityState("temperature")) + "°C",
+                line1: Math.round(this.getEntityState("temperature")) + "°C",
+                line2: "💧 " + Math.round(this.getEntityState("humidity")) + "%",
                 color: "#ffffff"
               }
             }
@@ -38791,7 +38829,7 @@
 
       .details {
         margin: auto;
-        border-color: "#777799";
+        border-color: #777799;
         border-radius: 10px;
         border-width: 1px;
         border-style: solid;
@@ -38814,6 +38852,7 @@
           </div>
           <div class="thermal-details">
             <div class="details">Hardware ID: ${this.getHardwareAddress()}</div>
+            <div class="details">Area: ${this.config.area}</div>
           </div>
         </ha-card>
       `;
