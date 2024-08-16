@@ -38375,7 +38375,8 @@
             pointRadius: 0,
             borderWidth: 1,
             showLine: true,
-            tension: 0.2
+            tension: 0.2,
+            spanGaps: true
           }, {
             label: "Standing Charge",
             data: this.data_sc,
@@ -38384,7 +38385,8 @@
             pointRadius: 0,
             borderWidth: 1,
             showLine: true,
-            tension: 0.2
+            tension: 0.2,
+            spanGaps: true
           }]
         },
         options: {
@@ -38536,7 +38538,8 @@
             pointRadius: 0,
             borderWidth: 1,
             showLine: true,
-            tension: 0.2
+            tension: 0.2,
+            spanGaps: true
           }]
         },
         options: {
