@@ -39,7 +39,7 @@ class GlowStrategy {
                     all_cards.push({
                         "type": "custom:thermal-card",
                         "sensor": j,
-                        "area": devices.filter((device) => device.model === "Glow Thermal Sensor")[j - 1].area_id
+                        "area": devices.filter((device) => device.model === "Glow Thermal Sensor")[j - 1].area_id || "None"
                     })
                     ++j;
                 }

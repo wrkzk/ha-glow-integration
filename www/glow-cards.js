@@ -38833,6 +38833,14 @@
       }
     }
 
+    getAreaName() {
+      if (this.config.area === "None") {
+        return "No Area Configured";
+      } else {
+        return this.config.area.split("_").map(word => word.substring(0, 1).toUpperCase() + word.substring(1)).join(" ");
+      }
+    }
+
     getHardwareAddress() {
       if (this.entity === 1) {
         return this.hass.states["sensor.hardware_address"].state;
@@ -38958,7 +38966,7 @@
             <canvas></canvas>
           </div>
           <div class="thermal-details">
-            <div class="details"><b>${this.config.area.split("_").map(word => word.substring(0, 1).toUpperCase() + word.substring(1)).join(" ")}</b></div>
+            <div class="details"><b>${this.getAreaName()}</b></div>
             <div class="divider"></div>
             <div class="details">MAC: ${this.getHardwareAddress()}</div>
           </div>
