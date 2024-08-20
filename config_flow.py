@@ -13,6 +13,9 @@ from homeassistant.core import callback
 
 from .const import DOMAIN, CONF_TOPIC_PREFIX
 
+from homeassistant.components import mqtt
+from homeassistant.components.mqtt.models import ReceiveMessage
+
 _LOGGER = logging.getLogger(__name__)
 
 

@@ -10,17 +10,17 @@ class GlowStrategy {
             {
                 "type": "custom:spacer-card"
             },
-            {
-                "type": "custom:carbon-card"
-            },
+            //{
+            //    "type": "custom:carbon-card"
+            //},
             {
                 "type": "custom:power-card"
             },
             {
-                "type": "custom:chartjs-card"
+                "type": "custom:price-card"
             },
             {
-                "type": "custom:price-card"
+                "type": "custom:chartjs-card"
             },
             {
                 "type": "custom:consumption-card"

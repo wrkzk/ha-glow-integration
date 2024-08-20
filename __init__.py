@@ -32,7 +32,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         cache_headers=False,
     )
     await hass.data["lovelace"]["resources"].async_create_item(
-        {"res_type": "module", "url": "/ha-glow-files/chartjs-card.js"}
+        {"res_type": "module", "url": "/ha-glow-files/glow-cards.js"}
     )
     await hass.data["lovelace"]["resources"].async_create_item(
         {"res_type": "module", "url": "/ha-glow-files/glow-strategy.js"}

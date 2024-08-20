@@ -37905,7 +37905,8 @@
       }
 
       return $`
-      <ha-card header="Current Energy Mix">
+      <ha-card>
+        <h1 class="card-header custom-header">Current Energy Mix</h1>
         <div class="chart-container">
           <canvas id="mix-canvas"></canvas>
         </div>
@@ -37916,10 +37917,14 @@
     static styles = r$2`
     .chart-container {
       padding: 20px;
+}
+
+    .custom-header {
+      text-align: center;
     }
 
     #mix-canvas {
-      margin-top: -50px;
+      margin-top: -70px;
       margin-bottom: -50px;
     }
   `
@@ -38082,7 +38087,8 @@
       }
 
       return $`
-      <ha-card header="Carbon Intensity by Type (gCO₂/kWh)">
+      <ha-card>
+        <h1 class="card-header custom-header">Carbon Intensity by Type</h1>
         <div class="chart-container">
           <canvas></canvas>
         </div>
@@ -38093,6 +38099,10 @@
     static styles = r$2`
     .chart-container {
       padding: 20px;
+    }
+
+    .custom-header {
+      text-align: center;
     }
   `
   }
@@ -38394,9 +38404,9 @@
         options: {
           //responsive: true,
           //borderWidth: 1,
-          //animation: {
-          //  duration: 0
-          //},
+          animation: {
+            duration: 0
+          },
           scales: {
             x: {
               type: 'time',
@@ -38510,19 +38520,16 @@
     .value {
       font-size: 23px;
     }
+
+    .custom-header {
+      text-align: center;
+    }
   `;
 
     getTotalCost() {
-      if (
-        this.hass.states["sensor.smart_meter_electricity_import_standing_charge"].state >
-        this.hass.states["sensor.smart_meter_electricity_import_today"].state *
-        this.hass.states["sensor.smart_meter_electricity_import_unit_rate"].state
-      ) {
-        return this.hass.states["sensor.smart_meter_electricity_import_standing_charge"].state;
-      } else {
-        return this.hass.states["sensor.smart_meter_electricity_import_today"].state *
-          this.hass.states["sensor.smart_meter_electricity_import_unit_rate"].state;
-      }
+      return Number(this.hass.states["sensor.smart_meter_electricity_import_standing_charge"].state) +
+        (Number(this.hass.states["sensor.smart_meter_electricity_import_today"].state) *
+        Number(this.hass.states["sensor.smart_meter_electricity_import_unit_rate"].state))
     }
 
     render() {
@@ -38539,7 +38546,8 @@
       }
 
       return $`
-      <ha-card header="Energy Import Price">
+      <ha-card>
+        <h1 class="card-header custom-header">Energy Import Price</h1>
         <div class="price-container">
           <div class="label">
             <div class="title">
@@ -38650,9 +38658,9 @@
               }
             }
           },
-          //animation: {
-          //  duration: 0
-          //}
+          animation: {
+            duration: 0
+          }
         }
       });
 
@@ -38752,11 +38760,16 @@
     .value {
       font-size: 23px;
     }
+
+    .custom-header {
+      text-align: center;
+    }
   `;
 
     render() {
       return $`
-      <ha-card header="Energy Import">
+      <ha-card>
+        <h1 class="card-header custom-header">Energy Import</h1>
         <div class="power-container">
           <div class="label">
             <div class="title">
@@ -38840,7 +38853,7 @@
         data: {
           datasets: [{
             backgroundColor: [
-              'rgb(255, 99, 132)',
+              '#6C698D',
               '#ccc'
             ],
             data: [perc * 100, 100 - (perc * 100)],
@@ -38858,6 +38871,7 @@
           cutout: "75%",
           rotation: 270,
           circumference: 180,
+          animation: false,
           elements: {
             center: {
               line1: Math.round(this.getEntityState("temperature")) + "°C",

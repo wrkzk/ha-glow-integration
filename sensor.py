@@ -57,12 +57,11 @@ async def async_setup_entry(
     deviceUpdateGroups = {}
     thermal_sensor_ids = []
 
-    coordinator = MyEnergyCoordinator(
+    coordinator = MyWebDataCoordinator(
         hass,
         config,
     )
     await coordinator.async_config_entry_first_refresh()
-
     sensors = coordinator.topics
 
     async_add_entities(
@@ -104,6 +103,7 @@ async def async_setup_entry(
 
 
 def num_of_thermal_sensors() -> int:
+    """Return the number of thermal sensors discoverd by MQTT."""
     count = 0
     for value in device_types.values():
         if len(value) > 1:
@@ -112,7 +112,7 @@ def num_of_thermal_sensors() -> int:
 
 
 async def async_get_device_groups(deviceUpdateGroups, async_add_entities, device_id):
-    # add to update groups if not already there
+    """Group devices discoverd by MQTT."""
     if device_id not in deviceUpdateGroups:
         _LOGGER.debug("New device found: %s", device_id)
 
@@ -138,7 +138,7 @@ async def async_get_device_groups(deviceUpdateGroups, async_add_entities, device
                 HildebrandGlowMqttSensorUpdateGroup(
                     device_id, "electricitymeter", ELECTRICITY_SENSORS
                 ),
-                # HildebrandGlowMqttSensorUpdateGroup(device_id, "gasmeter", GAS_SENSORS),
+                HildebrandGlowMqttSensorUpdateGroup(device_id, "gasmeter", GAS_SENSORS),
             ]
 
         async_add_entities(
@@ -154,11 +154,11 @@ async def async_get_device_groups(deviceUpdateGroups, async_add_entities, device
     return deviceUpdateGroups[device_id]
 
 
-class MyEnergyCoordinator(DataUpdateCoordinator):
-    """My custom coordinator."""
+class MyWebDataCoordinator(DataUpdateCoordinator):
+    """Fetch data from online carbon intensity API."""
 
     def __init__(self, hass, config) -> None:
-        """Initialize my coordinator."""
+        """Initialize web data coordinator."""
         super().__init__(
             hass,
             _LOGGER,
@@ -197,7 +197,11 @@ class MyEnergyCoordinator(DataUpdateCoordinator):
             return {
                 "response": mix_json_resp["data"][0]["data"][0]["generationmix"]
                 + [
-                    {"perc": value, "fuel": key, "carbon": True}
+                    {
+                        "perc": value,
+                        "fuel": key.lower().replace(" ", "-") + "-carbon",
+                        "carbon": True,
+                    }
                     for (key, value) in factor_json_resp["data"][0].items()
                 ]
             }
@@ -207,6 +211,7 @@ class BaseEnergySensor(CoordinatorEntity, SensorEntity):
     """Representation of a Sensor."""
 
     def __init__(self, coordinator, name, value, entry):
+        """Initialize a generic home assistant sensor."""
         super().__init__(coordinator, context=value)
         self._attr_name = name
         self._attr_native_unit_of_measurement = "%"
@@ -229,7 +234,7 @@ class BaseEnergySensor(CoordinatorEntity, SensorEntity):
 
 
 class HildebrandGlowMqttSensorUpdateGroup:
-    """Representation of Hildebrand Glow MQTT Meter Sensors that all get updated together."""
+    """Representation of Hildebrand Glow MQTT Meter Sensors that get updated together."""
 
     def __init__(self, device_id: str, topic_regex: str, meters: Iterable) -> None:
         """Initialize the sensor collection."""
