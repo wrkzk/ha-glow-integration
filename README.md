@@ -1,7 +1,7 @@
 # Home Assistant Integration for Hildebrand Glow Hub
 This integration exposes sensor entities that fetch data via MQTT from your smart meter. Additionally, this integration fetches public data from the internet, providing further insights into your energy consumption. Bundled with this integration is a custom Glow dashboard for Home assistant, as well as access to the custom cards used for the dashboard for use in your own dashboards. See the images below.
 
-![Custom Integration Dashboard](./ha-dashboard.png)
+![image](https://github.com/user-attachments/assets/7e3c5cf3-e07d-4cdf-b1ad-148d18aa8687)
 
 # Installation
 ## 1. Requirements
@@ -40,3 +40,4 @@ Finally, navigate to **Settings** > **Devices & Services** and click the **Add I
   strategy:
     type: custom:glow
   ```
+  Select **Save** in the top right, and then close out once the configuration has saved. You should now see the custom Glow dashboard loaded. The cards that appear can also be used in other dashboard.
