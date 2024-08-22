@@ -29,4 +29,14 @@ Now, type the name of the integration, `ha-glow-integration`, into the searchbar
 
 ![image](https://github.com/user-attachments/assets/4025d5d7-daf5-4b9e-867c-3435818bc3f1)
 
+## 4. Install the Integration
+
 Finally, navigate to **Settings** > **Devices & Services** and click the **Add Integration** button in the bottom right. Type the name of the integration, `ha-glow-integration`, into the search bar, and click the integration that should come up. Assuming you set up the MQTT stream correctly, and left the MQTT topic on the IHD device as `glow`, you should not have to change the default options on the setup box. Click **Submit**, and the integration should be installed. You should see the all the sensor entities, including the thermal sensors as seperate devices, appear as soon as the next MQTT update is published.
+
+# Enabling the Custom Dashboard
+- To enable the custom dashboard, first navigate to **Settings** > **Dashboards** and click **Add Dashboard** in the bottom right. Select **New dashboard from scratch**. Give this dashboard a title that you want, such as `Glow`, any icon, leave the url as it is, and then click **Create**.
+- Now, navigate to this new dashboard on the left sidebar in the Home Assistant UI. Select the pencil icon in the top right, then the three dots, and select **Raw configuration editor**. In the text editor that appears, enter the following:
+  ```
+  strategy:
+    type: custom:glow
+  ```
