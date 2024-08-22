@@ -41,3 +41,6 @@ Finally, navigate to **Settings** > **Devices & Services** and click the **Add I
     type: custom:glow
   ```
   Select **Save** in the top right, and then close out once the configuration has saved. You should now see the custom Glow dashboard loaded. The cards that appear can also be used in other dashboard.
+
+# Credits
+- @megakid for his integration, which this one takes a lot of code parsing the MQTT stream from
