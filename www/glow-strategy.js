@@ -20,7 +20,7 @@ class GlowStrategy {
                 "type": "custom:price-card"
             },
             {
-                "type": "custom:chartjs-card"
+                "type": "custom:mix-card"
             },
             {
                 "type": "custom:consumption-card"

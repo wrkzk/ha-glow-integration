@@ -3,54 +3,6 @@
   factory();
 })((function () { 'use strict';
 
-  const name = "chartjs-card";
-  const version$1 = "1.1.1";
-  const description = "Chart.js card to Home Assistant";
-  const main = "src/index.js";
-  const keywords = [
-  	"chartjs",
-  	"homeassistant",
-  	"home-assistant"
-  ];
-  const dependencies = {
-  	"chart.js": "^3.9.1",
-  	"chartjs-adapter-date-fns": "^3.0.0",
-  	"chartjs-plugin-annotation": "^1.2.2",
-  	"chartjs-plugin-zoom": "^1.2.0",
-  	"date-fns": "^3.6.0",
-  	jquery: "^3.7.1",
-  	lit: "^2.1.1",
-  	lodash: "^4.17.15"
-  };
-  const devDependencies = {
-  	"@rollup/plugin-commonjs": "^21.0.1",
-  	"@rollup/plugin-json": "^4.1.0",
-  	"@rollup/plugin-node-resolve": "^13.1.3",
-  	prettier: "^2.5.1",
-  	rollup: "^2.63.0",
-  	"rollup-plugin-serve": "^1.1.0"
-  };
-  const scripts = {
-  	test: "echo \"Error: no test specified\" && exit 1",
-  	build: "npm run rollup",
-  	rollup: "rollup -c",
-  	start: "rollup -c --watch"
-  };
-  const author = "Ricardo Reis";
-  const license = "ISC";
-  var pkg = {
-  	name: name,
-  	version: version$1,
-  	description: description,
-  	main: main,
-  	keywords: keywords,
-  	dependencies: dependencies,
-  	devDependencies: devDependencies,
-  	scripts: scripts,
-  	author: author,
-  	license: license
-  };
-
   /*!
    * Chart.js v3.9.1
    * https://www.chartjs.org
@@ -37626,8 +37578,6 @@
     }
   });
 
-  document.head.insertAdjacentHTML("beforeend", `<style>.card-header{text-align:center}</style>`);
-
   const centerTextPlugin = {
     id: 'center-text',
     beforeDraw: function (chart) {
@@ -37778,12 +37728,6 @@
 
   class SpacerCard extends s {
 
-    static styles = r$2`
-    .spacer {
-      height: 70px;
-    }
-  `;
-
     static get properties() {
       return {
         hass: { type: Object },
@@ -37798,6 +37742,12 @@
     getCardSize() {
       return 20;
     }
+
+    static styles = r$2`
+    .spacer {
+    height: 70px;
+  }
+  `;
 
     render() {
       return $`
@@ -38382,8 +38332,8 @@
           datasets: [{
             label: "Unit rate",
             data: this.data_ur,
-            backgroundColor: '#afe65a',
-            borderColor: '#afe65a',
+            backgroundColor: '#ff7300',
+            borderColor: '#ff7300',
             pointRadius: 0,
             borderWidth: 1,
             showLine: true,
@@ -38529,7 +38479,7 @@
     getTotalCost() {
       return Number(this.hass.states["sensor.smart_meter_electricity_import_standing_charge"].state) +
         (Number(this.hass.states["sensor.smart_meter_electricity_import_today"].state) *
-        Number(this.hass.states["sensor.smart_meter_electricity_import_unit_rate"].state))
+          Number(this.hass.states["sensor.smart_meter_electricity_import_unit_rate"].state))
     }
 
     render() {
@@ -38975,7 +38925,7 @@
     }
   }
 
-  customElements.define(pkg.name, MixCard);
+  customElements.define("mix-card", MixCard);
   customElements.define("consumption-card", IntensityCard);
   customElements.define("carbon-card", CarbonCard);
   customElements.define("price-card", PriceCard);
@@ -38987,44 +38937,44 @@
   window.customCards = window.customCards || [];
 
   window.customCards.push({
-    type: "chartjs-card",
-    name: "Energy Mix Data",
-    description: "Display data about the current energy mix",
+    type: "mix-card",
+    name: "Current Energy Mix",
+    description: "Lovelace card that fetches the current energy mix for your UK region and displays it as a pie chart.",
   });
   window.customCards.push({
     type: "consumption-card",
-    name: "Energy Consumption Data",
-    description: "Display data about the current energy Consumption",
+    name: "Carbon Intensity Data",
+    description: "Lovelace card that fetches the carbon intensity levels for each of the types of energy generation.",
   });
   window.customCards.push({
     type: "carbon-card",
-    name: "Amount of Carbon Released",
-    description: "Display data about the carbon released",
+    name: "Carbon Production Card",
+    description: "Lovelace card that displays the total estimated amount of Carbon Dioxide that has been released, based on the users energy consumption, the current energy mix, and the carbon intensities.",
   });
   window.customCards.push({
     type: "price-card",
     name: "Current Standing Charge and Unit Rate",
-    description: "Display the current standing charge and unit rate for energy"
+    description: "Lovelace card that displays the current standing charge and unit rate, as well as the recent history as a graph."
   });
   window.customCards.push({
     type: "power-card",
-    name: "Current Power Level",
-    description: "Display the current power level"
+    name: "Current Energy Import",
+    description: "Lovelace card to diplay the current energy import and total import, as well as a graph displaying the recent import history."
   });
   window.customCards.push({
     type: "title-card",
-    name: "Title Card",
-    description: "Title Card"
+    name: "Hildebrand Title Card",
+    description: "Lovelace card that displays the Hildebrand logo."
   });
   window.customCards.push({
     type: "spacer-card",
     name: "Spacer Card",
-    description: "Spacer Card"
+    description: "Lovelace card that provides space between two stacked cards."
   });
   window.customCards.push({
     type: "thermal-card",
-    name: "Thermal Card",
-    description: "Thermal Card"
+    name: "Thermal Sensor Card",
+    description: "Lovelace card that displays a temperature and humididy value to each of the Hildebrand thermal sensors that are connected to the Glow IHD."
   });
 
 }));
